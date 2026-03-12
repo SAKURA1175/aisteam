@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: tutormarket-postgres
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tutormarket}
+      POSTGRES_USER: ${POSTGRES_USER:-tutormarket}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tutormarket}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tutormarket} -d ${POSTGRES_DB:-tutormarket}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: tutormarket-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    container_name: tutormarket-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    env_file:
+      - ../.env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-02-21T16-00-46Z
+    depends_on:
+      minio:
+        condition: service_started
+    env_file:
+      - ../.env
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      /usr/bin/mc mb --ignore-existing local/${MINIO_BUCKET:-teacher-knowledge};
+      exit 0;
+      "
+
+  main-api:
+    build:
+      context: ../services/main-api
+    container_name: tutormarket-main-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    env_file:
+      - ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      MINIO_ENDPOINT: http://minio:9000
+      AI_ORCHESTRATOR_BASE_URL: http://ai-orchestrator:8090
+    ports:
+      - "${MAIN_API_PORT:-8080}:8080"
+
+  ai-orchestrator:
+    build:
+      context: ../services/ai-orchestrator
+    container_name: tutormarket-ai-orchestrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      MINIO_ENDPOINT: http://minio:9000
+      MAIN_API_BASE_URL: http://main-api:8080
+    ports:
+      - "${AI_ORCHESTRATOR_PORT:-8090}:8090"
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

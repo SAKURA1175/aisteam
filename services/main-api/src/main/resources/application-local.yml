@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./.data/tutormarket;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: local-dev-secret-key-with-at-least-thirty-two-bytes
+  ai:
+    base-url: http://localhost:8090
+  storage:
+    endpoint: http://localhost:9000
+    bucket: teacher-knowledge
+
+logging:
+  level:
+    root: INFO
+    com.tutormarket.api: INFO

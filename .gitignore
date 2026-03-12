@@ -25,8 +25,20 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+.venv/
+.venv*/
+.pytest_cache/
 
 # Misc
 coverage/
 tmp/
 out/
+
+# Java
+target/
+.mvn/
+mvnw
+mvnw.cmd
+
+# Containers
+.docker/

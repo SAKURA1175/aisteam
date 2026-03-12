@@ -1,0 +1,301 @@
+"use client";
+
+import type { ChatMessageItem, CitationItem, ConversationSummary } from "@tutormarket/types";
+import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createConversation, getMessages, streamConversationMessage } from "../lib/api";
+import { useAuth } from "../lib/auth";
+import { getTeacherBranding } from "../lib/teacher-branding";
+import { TeacherAvatar } from "./teacher-avatar";
+import { useWorkspace } from "./workspace-shell";
+
+const citationSourceLabel = {
+  teacher_knowledge: "伙伴知识库",
+  student_private: "家庭资料库"
+} as const;
+
+export function ChatWorkspace() {
+  const { session, token } = useAuth();
+  const {
+    activeConversationId,
+    beginNewConversation,
+    conversationsLoading,
+    preferences,
+    refreshConversations,
+    registerConversation,
+    selectedTeacher,
+    teacherConversations,
+    teacherDetail,
+    teacherDetailLoading
+  } = useWorkspace();
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
+  const [draft, setDraft] = useState("");
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const chatStreamRef = useRef<HTMLDivElement | null>(null);
+  const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+
+  useEffect(() => {
+    if (!token || !activeConversationId) {
+      setMessages([]);
+      return;
+    }
+
+    setLoadingMessages(true);
+    void getMessages(token, activeConversationId)
+      .then((response) => {
+        setMessages(response);
+        setError(null);
+      })
+      .catch((fetchError: Error) => {
+        setError(fetchError.message);
+      })
+      .finally(() => {
+        setLoadingMessages(false);
+      });
+  }, [activeConversationId, token]);
+
+  useEffect(() => {
+    if (!chatStreamRef.current) {
+      return;
+    }
+
+    chatStreamRef.current.scrollTop = chatStreamRef.current.scrollHeight;
+  }, [loadingMessages, messages, streaming]);
+
+  const starterPrompts = useMemo(() => {
+    if (!selectedTeacher) {
+      return [
+        "请帮我看看孩子现在更适合哪位伙伴。",
+        "给孩子安排一个 10 分钟的小练习。",
+        "结合最近的学习情况，先复习再开始新内容。"
+      ];
+    }
+
+    return [
+      `请以 ${selectedTeacher.name} 的风格，先根据孩子现在的情况安排一个轻松开场。`,
+      `围绕「${selectedTeacher.headline}」，设计一个 10 分钟的互动练习。`,
+      `继续孩子和 ${selectedTeacher.name} 上次的节奏，先复习再推进一点新内容。`
+    ];
+  }, [selectedTeacher]);
+
+  async function handleSend() {
+    if (!token || !session || !selectedTeacher || !draft.trim() || streaming) {
+      return;
+    }
+
+    setError(null);
+    setStreaming(true);
+
+    const content = draft.trim();
+    setDraft("");
+
+    let conversationId = activeConversationId;
+    const timestamp = new Date().toISOString();
+    const optimisticUserId = `local-user-${Date.now()}`;
+    const optimisticAssistantId = `local-assistant-${Date.now()}`;
+    const optimisticUserMessage: ChatMessageItem = {
+      id: optimisticUserId,
+      role: "USER",
+      content,
+      citations: [],
+      createdAt: timestamp
+    };
+    const optimisticAssistantMessage: ChatMessageItem = {
+      id: optimisticAssistantId,
+      role: "ASSISTANT",
+      content: "",
+      citations: [],
+      createdAt: timestamp
+    };
+
+    try {
+      if (!conversationId) {
+        const createdConversation: ConversationSummary = await createConversation(token, selectedTeacher.id, selectedTeacher.name);
+        registerConversation(createdConversation);
+        conversationId = createdConversation.id;
+      }
+
+      setMessages((current) => [...current, optimisticUserMessage, optimisticAssistantMessage]);
+
+      await streamConversationMessage(token, conversationId, content, {
+        onToken: ({ delta }) => {
+          setMessages((current) =>
+            current.map((message, index) =>
+              index === current.length - 1 && message.role === "ASSISTANT"
+                ? { ...message, content: `${message.content}${delta}` }
+                : message
+            )
+          );
+        },
+        onCitation: (citation) => {
+          setMessages((current) =>
+            current.map((message, index) =>
+              index === current.length - 1 && message.role === "ASSISTANT"
+                ? { ...message, citations: [...message.citations, citation] }
+                : message
+            )
+          );
+        },
+        onMessageEnd: (payload) => {
+          setMessages((current) =>
+            current.map((message, index) =>
+              index === current.length - 1 && message.role === "ASSISTANT"
+                ? { ...message, content: payload.content, citations: payload.citations ?? [] }
+                : message
+            )
+          );
+        },
+        onError: (payload) => {
+          setError(typeof payload === "string" ? payload : "流式请求失败");
+        }
+      });
+
+      if (conversationId) {
+        const latestMessages = await getMessages(token, conversationId);
+        setMessages(latestMessages);
+      }
+      await refreshConversations();
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "发送失败");
+      if (conversationId) {
+        try {
+          const latestMessages = await getMessages(token, conversationId);
+          setMessages(latestMessages);
+        } catch {
+          setMessages((current) =>
+            current.filter((message) => message.id !== optimisticUserId && message.id !== optimisticAssistantId)
+          );
+        }
+      }
+    } finally {
+      setStreaming(false);
+    }
+  }
+
+  function renderCitation(citation: CitationItem, index: number) {
+    return (
+      <div key={`${citation.fileId}-${citation.chunkRef}-${index}`} className="citation-card">
+        <div className="citation-card__meta">
+          <span>{citationSourceLabel[citation.sourceType]}</span>
+          <strong>{citation.fileName}</strong>
+        </div>
+        <p>{citation.snippet}</p>
+      </div>
+    );
+  }
+
+  if (!selectedTeacher) {
+    return (
+      <section className="workspace-page">
+        <div className="status-panel">
+          <strong>还没有可用伙伴</strong>
+          <p>先确认老师接口已经返回数据，加载成功后这里会自动切到当前伙伴。</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="workspace-page">
+      <div
+        className="workspace-hero workspace-hero--chat"
+        style={
+          {
+            "--teacher-accent": branding.accent,
+            "--teacher-surface": branding.surface
+          } as CSSProperties
+        }
+      >
+        <div className="workspace-hero__copy">
+          <span className="eyebrow">Live Companion Chat</span>
+          <h1>{teacherDetail?.name ?? selectedTeacher.name}</h1>
+          <p>{teacherDetail?.description ?? selectedTeacher.headline}</p>
+          <div className="hero-chip-row">
+            <span className="workspace-chip">真实 SSE</span>
+            <span className="workspace-chip">
+              {conversationsLoading ? "同步会话中" : `${teacherConversations.length} 个历史会话`}
+            </span>
+            {teacherDetailLoading ? <span className="workspace-chip">同步伙伴资料中</span> : null}
+          </div>
+        </div>
+        <TeacherAvatar name={selectedTeacher.name} slug={selectedTeacher.slug} size="lg" subtitle={selectedTeacher.headline} />
+      </div>
+
+      {error ? (
+        <div className="status-panel status-panel--error">
+          <strong>当前对话链路异常</strong>
+          <p>{error}</p>
+        </div>
+      ) : null}
+
+      <div className="chat-layout">
+        <div ref={chatStreamRef} className="chat-thread">
+          {loadingMessages ? (
+            <div className="status-panel">正在加载会话消息...</div>
+          ) : messages.length ? (
+            messages.map((message) => (
+              <article key={message.id} className={`chat-bubble chat-bubble--${message.role === "ASSISTANT" ? "assistant" : "user"}`}>
+                <div className="chat-bubble__meta">
+                  <span>{message.role === "ASSISTANT" ? selectedTeacher.name : session?.user.displayName ?? "你"}</span>
+                  <span>{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <p>{message.content || (message.role === "ASSISTANT" && streaming ? "正在组织回答..." : "")}</p>
+                {message.citations.length ? <div className="citation-stack">{message.citations.map(renderCitation)}</div> : null}
+              </article>
+            ))
+          ) : (
+            <div className="empty-stage">
+              <div className="empty-stage__copy">
+                <strong>{branding.welcomeTitle}</strong>
+                <p>直接开始提问，工作台会自动带入当前伙伴、家庭偏好和后续引用来源。</p>
+              </div>
+              <div className="starter-grid">
+                {starterPrompts.map((prompt) => (
+                  <button key={prompt} className="starter-card" type="button" onClick={() => setDraft(prompt)}>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="composer-card">
+          <div className="composer-card__heading">
+            <strong>{streaming ? "正在生成回答..." : `发送给 ${selectedTeacher.name}`}</strong>
+            <span>
+              当前偏好：{preferences?.preferredLanguage ?? "zh-CN"} / {preferences?.responseStyle ?? "balanced"} /{" "}
+              {preferences?.correctionMode ?? "gentle"}
+            </span>
+          </div>
+          <textarea
+            className="chat-input"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder="输入想和伙伴继续的话题，例如：请结合孩子上次的记忆，先做一个 10 分钟的轻练习。"
+            rows={5}
+          />
+          <div className="composer-actions">
+            <button className="button button--ghost" type="button" onClick={beginNewConversation}>
+              新建会话
+            </button>
+            <button className="button button--ghost" type="button" onClick={() => setDraft(starterPrompts[0] ?? "")}>
+              填入示例
+            </button>
+            <button className="button button--primary" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>
+              {streaming ? "发送中..." : "发送消息"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
