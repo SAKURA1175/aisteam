@@ -1,0 +1,105 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - AGENTS.md
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - AGENTS.md
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 59
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Prepare .env from template
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ".env")) {
+            Copy-Item ".env.example" ".env"
+          }
+
+      - name: Overlay optional AI secrets into .env
+        shell: pwsh
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          OPENAI_EMBEDDING_MODEL: ${{ secrets.OPENAI_EMBEDDING_MODEL }}
+        run: |
+          $lines = Get-Content ".env"
+
+          function Set-Or-AppendEnvValue {
+            param(
+              [string]$Key,
+              [string]$Value
+            )
+
+            if ([string]::IsNullOrWhiteSpace($Value)) {
+              return
+            }
+
+            $prefix = "$Key="
+            $updated = $false
+
+            for ($index = 0; $index -lt $lines.Count; $index++) {
+              if ($lines[$index].StartsWith($prefix)) {
+                $lines[$index] = "$Key=$Value"
+                $updated = $true
+              }
+            }
+
+            if (-not $updated) {
+              $script:lines += "$Key=$Value"
+            }
+          }
+
+          Set-Or-AppendEnvValue -Key "OPENAI_API_KEY" -Value $env:OPENAI_API_KEY
+          Set-Or-AppendEnvValue -Key "OPENAI_BASE_URL" -Value $env:OPENAI_BASE_URL
+          Set-Or-AppendEnvValue -Key "OPENAI_MODEL" -Value $env:OPENAI_MODEL
+          Set-Or-AppendEnvValue -Key "OPENAI_EMBEDDING_MODEL" -Value $env:OPENAI_EMBEDDING_MODEL
+
+          Set-Content ".env" $lines
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Install AI orchestrator dependencies
+        working-directory: services/ai-orchestrator
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Start local infrastructure
+        shell: pwsh
+        run: .\infra\start-local.ps1

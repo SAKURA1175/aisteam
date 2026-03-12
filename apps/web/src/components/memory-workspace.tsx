@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { deleteMemoryRecord, listMemoryRecords, updateMemoryRecord } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 import { TeacherAvatar } from "./teacher-avatar";
 import { useWorkspace } from "./workspace-shell";
@@ -29,6 +30,7 @@ export function MemoryWorkspace() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+  const companion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
 
   useEffect(() => {
     if (!token || !selectedTeacher) {
@@ -149,10 +151,10 @@ export function MemoryWorkspace() {
       >
         <div className="workspace-hero__copy">
           <span className="eyebrow">Memory Garden</span>
-          <h1>{selectedTeacher ? `${selectedTeacher.name} 的长期记忆` : "等待伙伴上下文"}</h1>
+          <h1>{selectedTeacher ? `${companion.displayName} 的长期记忆` : "等待伙伴上下文"}</h1>
           <p>这里直接接到真实 `memory_records` 接口。你可以查看、确认、修正或删除当前伙伴记住的长期信息。</p>
         </div>
-        {selectedTeacher ? <TeacherAvatar name={selectedTeacher.name} slug={selectedTeacher.slug} size="lg" subtitle={selectedTeacher.headline} /> : null}
+        {selectedTeacher ? <TeacherAvatar name={companion.displayName} slug={selectedTeacher.slug} size="lg" subtitle={companion.subtitle} /> : null}
       </div>
 
       {error ? (

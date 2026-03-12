@@ -1,12 +1,11 @@
 "use client";
 
 import type { ChatMessageItem, CitationItem, ConversationSummary } from "@tutormarket/types";
-import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createConversation, getMessages, streamConversationMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
-import { TeacherAvatar } from "./teacher-avatar";
 import { useWorkspace } from "./workspace-shell";
 
 const citationSourceLabel = {
@@ -33,8 +32,10 @@ export function ChatWorkspace() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
   const chatStreamRef = useRef<HTMLDivElement | null>(null);
   const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+  const companion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
 
   useEffect(() => {
     if (!token || !activeConversationId) {
@@ -67,18 +68,36 @@ export function ChatWorkspace() {
   const starterPrompts = useMemo(() => {
     if (!selectedTeacher) {
       return [
-        "请帮我看看孩子现在更适合哪位伙伴。",
-        "给孩子安排一个 10 分钟的小练习。",
-        "结合最近的学习情况，先复习再开始新内容。"
+        { label: "共读热身", hint: "先轻松开口", prompt: "先和孩子做一个 5 分钟的绘本热身，用轻松提问带他进入状态。" },
+        { label: "表达练习", hint: "鼓励孩子多说", prompt: "围绕今天的故事内容，设计 3 个适合孩子表达的小问题。" },
+        { label: "睡前安抚", hint: "柔和陪伴节奏", prompt: "现在是睡前，陪孩子聊一段安静温柔的小故事，不要太兴奋。" },
+        { label: "复习引导", hint: "从上次继续", prompt: "结合孩子最近一次对话，先复习再推进一点新内容。" }
       ];
     }
 
     return [
-      `请以 ${selectedTeacher.name} 的风格，先根据孩子现在的情况安排一个轻松开场。`,
-      `围绕「${selectedTeacher.headline}」，设计一个 10 分钟的互动练习。`,
-      `继续孩子和 ${selectedTeacher.name} 上次的节奏，先复习再推进一点新内容。`
+      {
+        label: "共读热身",
+        hint: branding.promptHint,
+        prompt: `请以 ${companion.displayName} 的风格，先根据孩子现在的情况安排一个轻松开场。`
+      },
+      {
+        label: "互动练习",
+        hint: "10 分钟可完成",
+        prompt: `围绕「${companion.subtitle}」，设计一个 10 分钟的互动练习。`
+      },
+      {
+        label: "睡前陪伴",
+        hint: "节奏慢一点",
+        prompt: `请以 ${companion.displayName} 的语气，做一段适合睡前的安静陪伴对话。`
+      },
+      {
+        label: "复习推进",
+        hint: "从上次继续",
+        prompt: `继续孩子和 ${companion.displayName} 上次的节奏，先复习再推进一点新内容。`
+      }
     ];
-  }, [selectedTeacher]);
+  }, [branding.promptHint, companion.displayName, companion.subtitle, selectedTeacher]);
 
   async function handleSend() {
     if (!token || !session || !selectedTeacher || !draft.trim() || streaming) {
@@ -112,7 +131,7 @@ export function ChatWorkspace() {
 
     try {
       if (!conversationId) {
-        const createdConversation: ConversationSummary = await createConversation(token, selectedTeacher.id, selectedTeacher.name);
+        const createdConversation: ConversationSummary = await createConversation(token, selectedTeacher.id, companion.displayName);
         registerConversation(createdConversation);
         conversationId = createdConversation.id;
       }
@@ -186,6 +205,13 @@ export function ChatWorkspace() {
     );
   }
 
+  function toggleCitations(messageId: string) {
+    setExpandedCitations((current) => ({
+      ...current,
+      [messageId]: !current[messageId]
+    }));
+  }
+
   if (!selectedTeacher) {
     return (
       <section className="workspace-page">
@@ -199,28 +225,19 @@ export function ChatWorkspace() {
 
   return (
     <section className="workspace-page">
-      <div
-        className="workspace-hero workspace-hero--chat"
-        style={
-          {
-            "--teacher-accent": branding.accent,
-            "--teacher-surface": branding.surface
-          } as CSSProperties
-        }
-      >
-        <div className="workspace-hero__copy">
-          <span className="eyebrow">Live Companion Chat</span>
-          <h1>{teacherDetail?.name ?? selectedTeacher.name}</h1>
-          <p>{teacherDetail?.description ?? selectedTeacher.headline}</p>
-          <div className="hero-chip-row">
-            <span className="workspace-chip">真实 SSE</span>
-            <span className="workspace-chip">
-              {conversationsLoading ? "同步会话中" : `${teacherConversations.length} 个历史会话`}
-            </span>
-            {teacherDetailLoading ? <span className="workspace-chip">同步伙伴资料中</span> : null}
-          </div>
+      <div className="chat-context-bar">
+        <div className="chat-context-bar__copy">
+          <span className="chat-context-bar__eyebrow">陪伴对话</span>
+          <strong>{companion.displayName}</strong>
+          <span>{companion.subtitle}</span>
         </div>
-        <TeacherAvatar name={selectedTeacher.name} slug={selectedTeacher.slug} size="lg" subtitle={selectedTeacher.headline} />
+        <div className="chat-context-bar__meta">
+          <span className="workspace-chip">真实 SSE</span>
+          <span className="workspace-chip workspace-chip--soft">
+            {conversationsLoading ? "同步会话中" : `${teacherConversations.length} 个历史会话`}
+          </span>
+          {teacherDetailLoading ? <span className="workspace-chip workspace-chip--soft">同步伙伴资料中</span> : null}
+        </div>
       </div>
 
       {error ? (
@@ -236,25 +253,43 @@ export function ChatWorkspace() {
             <div className="status-panel">正在加载会话消息...</div>
           ) : messages.length ? (
             messages.map((message) => (
-              <article key={message.id} className={`chat-bubble chat-bubble--${message.role === "ASSISTANT" ? "assistant" : "user"}`}>
-                <div className="chat-bubble__meta">
-                  <span>{message.role === "ASSISTANT" ? selectedTeacher.name : session?.user.displayName ?? "你"}</span>
+              <article key={message.id} className={`chat-message chat-message--${message.role === "ASSISTANT" ? "assistant" : "user"}`}>
+                <div className="chat-message__meta">
+                  <span>{message.role === "ASSISTANT" ? companion.displayName : session?.user.displayName ?? "你"}</span>
                   <span>{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
-                <p>{message.content || (message.role === "ASSISTANT" && streaming ? "正在组织回答..." : "")}</p>
-                {message.citations.length ? <div className="citation-stack">{message.citations.map(renderCitation)}</div> : null}
+                <div className="chat-message__content">
+                  <p>{message.content || (message.role === "ASSISTANT" && streaming ? "正在组织回答..." : "")}</p>
+                </div>
+                {message.citations.length ? (
+                  <div className="citation-stack">
+                    <button
+                      className={`chat-sources-toggle${expandedCitations[message.id] ? " chat-sources-toggle--open" : ""}`}
+                      type="button"
+                      onClick={() => toggleCitations(message.id)}
+                    >
+                      {expandedCitations[message.id] ? "收起依据" : `查看依据 (${message.citations.length})`}
+                    </button>
+                    {expandedCitations[message.id] ? (
+                      <div className="chat-sources-panel">{message.citations.map(renderCitation)}</div>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
             ))
           ) : (
             <div className="empty-stage">
               <div className="empty-stage__copy">
+                <span className="empty-stage__eyebrow">今天想从哪里开始？</span>
                 <strong>{branding.welcomeTitle}</strong>
-                <p>直接开始提问，工作台会自动带入当前伙伴、家庭偏好和后续引用来源。</p>
+                <p>直接和 {companion.displayName} 开始一轮轻松对话，系统会自动带入家庭偏好和后续引用来源。</p>
               </div>
               <div className="starter-grid">
                 {starterPrompts.map((prompt) => (
-                  <button key={prompt} className="starter-card" type="button" onClick={() => setDraft(prompt)}>
-                    {prompt}
+                  <button key={prompt.prompt} className="starter-card" type="button" onClick={() => setDraft(prompt.prompt)}>
+                    <span className="starter-card__label">{prompt.label}</span>
+                    <strong>{prompt.prompt}</strong>
+                    <span className="starter-card__hint">{prompt.hint}</span>
                   </button>
                 ))}
               </div>
@@ -262,13 +297,16 @@ export function ChatWorkspace() {
           )}
         </div>
 
-        <div className="composer-card">
-          <div className="composer-card__heading">
-            <strong>{streaming ? "正在生成回答..." : `发送给 ${selectedTeacher.name}`}</strong>
+        <div className="chat-composer-dock">
+          <div className="chat-composer-dock__meta">
+            <strong>{streaming ? "正在生成回答..." : `发送给 ${companion.displayName}`}</strong>
             <span>
               当前偏好：{preferences?.preferredLanguage ?? "zh-CN"} / {preferences?.responseStyle ?? "balanced"} /{" "}
               {preferences?.correctionMode ?? "gentle"}
             </span>
+          </div>
+          <div className="composer-card__heading">
+            <span className="workspace-chip workspace-chip--soft">Cmd/Ctrl + Enter 发送</span>
           </div>
           <textarea
             className="chat-input"
@@ -287,7 +325,7 @@ export function ChatWorkspace() {
             <button className="button button--ghost" type="button" onClick={beginNewConversation}>
               新建会话
             </button>
-            <button className="button button--ghost" type="button" onClick={() => setDraft(starterPrompts[0] ?? "")}>
+            <button className="button button--ghost" type="button" onClick={() => setDraft(starterPrompts[0]?.prompt ?? "")}>
               填入示例
             </button>
             <button className="button button--primary" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>

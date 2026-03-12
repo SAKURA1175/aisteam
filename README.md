@@ -119,3 +119,38 @@ docs/
 - [后端计划书](docs/BACKEND_PLAN.md)
 - [UI 计划书](docs/UI_PLAN.md)
 - [当前进度与推进计划](docs/CURRENT_PROGRESS_PLAN.md)
+
+## GSD Agent Workflow
+
+仓库已补充面向 GitHub Copilot coding agent 和本地 Copilot/CLI 的 `gsd` 工作流配置。
+
+- 仓库级说明入口：`AGENTS.md`
+- GitHub Copilot 仓库说明：`.github/copilot-instructions.md`
+- 自定义 agent：`.github/agents/gsd.agent.md`
+- Copilot 环境准备：`.github/workflows/copilot-setup-steps.yml`
+
+### 在 GitHub 上使用
+
+1. 确保默认分支已经包含上述文件。
+2. 打开 GitHub Copilot 的 Agents 面板或 issue 指派入口。
+3. 选择自定义 agent `gsd`。
+4. 将任务交给 agent 后，优先查看其验证结果，而不仅是改动摘要。
+
+### 在本地使用
+
+- 本地 Copilot Chat、IDE agent 或 CLI 可以直接复用 `AGENTS.md` 和 `.github/copilot-instructions.md`。
+- 推荐先在仓库根目录执行依赖安装，再按改动范围运行 `npm run lint:web`、`mvn test`、`pytest`。
+
+### Secrets
+
+必需：
+
+- `OPENAI_API_KEY`
+
+推荐：
+
+- `OPENAI_BASE_URL`
+- `OPENAI_MODEL`
+- `OPENAI_EMBEDDING_MODEL`
+
+如果没有这些变量，agent 仍应优先完成本地静态检查和单元测试；只有在变量存在时，才执行真实 AI 或兼容网关的 smoke 验证。

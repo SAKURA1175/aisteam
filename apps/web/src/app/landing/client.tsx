@@ -2,33 +2,128 @@
 
 import type { TeacherSummary } from "@tutormarket/types";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { ComponentType, CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { HatchingChick } from "@/components/mascot/HatchingChick";
-import { SiteHeader } from "@/components/site-header";
-import { TeacherAvatar } from "@/components/teacher-avatar";
+import { ChevronRight, Heart, ShieldCheck, Sparkles, Sun } from "lucide-react";
+import { LottieMascot } from "@/components/mascot/LottieMascot";
+import { useAuth } from "@/lib/auth";
 import { getTeachers } from "@/lib/api";
+import { getCompanionIdentity } from "@/lib/companion-identity";
 import { getTeacherBranding } from "@/lib/teacher-branding";
 
-const featureCards = [
-  {
-    title: "记住每次学习的节奏",
-    body: "同一个陪伴伙伴会延续孩子的进度、偏好和容易卡住的点，不必每次重新介绍。"
-  },
-  {
-    title: "家庭资料可以随时补充",
-    body: "家长上传绘本、词卡和课堂素材后，聊天回答会自动结合这些家庭资料。"
-  },
-  {
-    title: "每个伙伴有自己的风格",
-    body: "Luna 更适合认字，Benny 更适合英语开口，Mimi 更适合绘本共读。"
-  }
-];
+type CompanionCardViewModel = {
+  id: string;
+  teacherId: string;
+  name: string;
+  headline: string;
+  badge: string;
+  quote: string;
+  hoverQuote: string;
+  accent: string;
+  surface: string;
+  animationPath: string;
+  ctaHref: string;
+  glyph: string;
+  icon: ComponentType<{ size?: number; strokeWidth?: number; fill?: string; className?: string }>;
+};
+
+function mapTeachersToCompanions(teachers: TeacherSummary[]): CompanionCardViewModel[] {
+  return teachers.slice(0, 3).map((teacher, index) => {
+    const branding = getTeacherBranding(teacher, index);
+    const identity = getCompanionIdentity(teacher.slug);
+
+    return {
+      id: teacher.id,
+      teacherId: teacher.id,
+      name: identity.displayName,
+      headline: identity.subtitle,
+      badge: identity.badge,
+      quote: identity.quote,
+      hoverQuote: identity.hoverQuote,
+      accent: branding.accent,
+      surface: branding.surface,
+      animationPath: identity.animationPath,
+      glyph: identity.glyph,
+      ctaHref: `/chat?teacherId=${teacher.id}`,
+      icon: identity.icon
+    };
+  });
+}
+
+function LandingButton({
+  href,
+  children,
+  variant = "primary",
+  className = ""
+}: {
+  href: string;
+  children: ReactNode;
+  variant?: "primary" | "secondary" | "ghost";
+  className?: string;
+}) {
+  return (
+    <Link className={`landing-button landing-button--${variant} ${className}`.trim()} href={href}>
+      {children}
+    </Link>
+  );
+}
+
+function CompanionCard({
+  companion,
+  dimmed,
+  active,
+  onEnter
+}: {
+  companion: CompanionCardViewModel;
+  dimmed: boolean;
+  active: boolean;
+  onEnter: () => void;
+}) {
+  const Icon = companion.icon;
+
+  return (
+    <article
+      className={`companion-card${active ? " companion-card--active" : ""}${dimmed ? " companion-card--dimmed" : ""}`}
+      style={
+        {
+          "--companion-accent": companion.accent,
+          "--companion-surface": companion.surface
+        } as CSSProperties
+      }
+      onMouseEnter={onEnter}
+    >
+      <div className={`companion-card__bubble${active ? " companion-card__bubble--visible" : ""}`}>
+        <span>{active ? companion.hoverQuote : companion.quote}</span>
+      </div>
+
+      <div className="companion-card__shell">
+        <div className="companion-card__mascot">
+          <LottieMascot className="companion-card__animation" fallback={companion.glyph} src={companion.animationPath} />
+        </div>
+
+        <div className="companion-card__copy">
+          <strong>{companion.name}</strong>
+          <p>{companion.headline}</p>
+          <div className="companion-card__badge">
+            <Icon size={18} strokeWidth={2.4} />
+            <span>{companion.badge}</span>
+          </div>
+        </div>
+
+        <LandingButton className="companion-card__cta" href={companion.ctaHref} variant="ghost">
+          选择我进入陪伴舱
+        </LandingButton>
+      </div>
+    </article>
+  );
+}
 
 export default function LandingPageClient() {
+  const { initialized, session } = useAuth();
   const [teachers, setTeachers] = useState<TeacherSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
     void getTeachers()
@@ -44,135 +139,148 @@ export default function LandingPageClient() {
       });
   }, []);
 
-  const heroTeachers = useMemo(() => teachers.slice(0, 3), [teachers]);
+  const companions = useMemo(() => mapTeachersToCompanions(teachers), [teachers]);
+  const activeHoverId = hoveredId ?? companions[0]?.id ?? null;
 
   return (
-    <main className="public-page">
-      <div className="page-shell">
-        <SiteHeader />
+    <main className="landing-carnival">
+      <div className="landing-carnival__shell">
+        <header className="landing-topbar">
+          <Link className="landing-brand" href="/">
+            <div className="landing-brand__symbol">蛋</div>
+            <div className="landing-brand__copy">
+              <strong>蛋壳伴学</strong>
+              <span>温柔、会记得孩子的 AI 陪伴伙伴</span>
+            </div>
+          </Link>
 
-        <section className="hero-card">
-          <div className="hero-card__copy">
-            <span className="eyebrow">Eggshell Companion</span>
-            <h1>把会记得孩子的 AI 陪伴伙伴，放进每天的学习时光。</h1>
-            <p>
-              蛋壳伴学把真实多老师后端接到了儿童向前端体验里。每位伙伴都有自己的知识边界、对话风格、家庭资料库和长期记忆。
-            </p>
-            <div className="hero-card__actions">
-              <Link className="button button--primary" href="/login">
-                家长登录
-              </Link>
-              <Link className="button button--ghost" href="/teachers">
-                选择陪伴伙伴
-              </Link>
+          <div className="landing-topbar__actions">
+            <div className="landing-topbar__streak">
+              <Sun size={22} strokeWidth={2.6} />
+              <span>陪伴第 12 天</span>
             </div>
-            <div className="hero-card__facts">
-              <div className="fact-pill">
-                <strong>真实接口</strong>
-                <span>老师、会话、资料、记忆都来自后端</span>
-              </div>
-              <div className="fact-pill">
-                <strong>持续陪伴</strong>
-                <span>同一老师下自动延续孩子的进度和偏好</span>
-              </div>
-            </div>
+            {initialized && session ? (
+              <>
+                <div className="landing-topbar__account">
+                  <strong>{session.user.displayName}</strong>
+                  <span>{session.user.role === "ADMIN" ? "运营工作台" : "家庭陪伴模式"}</span>
+                </div>
+                <LandingButton href="/chat" variant="primary">
+                  进入陪伴舱
+                </LandingButton>
+              </>
+            ) : (
+              <>
+                <LandingButton href="/login" variant="ghost">
+                  家长端
+                </LandingButton>
+                <LandingButton href="/chat" variant="primary">
+                  进入陪伴舱
+                </LandingButton>
+              </>
+            )}
+          </div>
+        </header>
+
+        <section className="landing-hero">
+          <div className="landing-hero__badge">
+            <Sparkles size={20} strokeWidth={2.7} />
+            <span>AI 驱动 · 治愈系幼教伴学</span>
           </div>
 
-          <div className="hero-card__visual">
-            <div className="hero-card__mascot">
-              <HatchingChick />
-            </div>
-            <div className="hero-card__bubble hero-card__bubble--top">会记得上次学到哪里</div>
-            <div className="hero-card__bubble hero-card__bubble--bottom">会引用老师知识库和家庭资料</div>
+          <div className="landing-hero__content">
+            <h1>
+              学习，不该是
+              <br />
+              <span>孤独的旅程。</span>
+            </h1>
+            <p>
+              小伙伴们都在蛋壳里等你哦！选一个你最喜欢的小动物，
+              <br />
+              开启今天的探索吧。
+            </p>
+          </div>
+
+          <div className="landing-hero__actions">
+            <LandingButton className="landing-hero__primary" href="/chat" variant="primary">
+              开始冒险
+              <ChevronRight size={28} strokeWidth={3} />
+            </LandingButton>
+          </div>
+
+          <div className="landing-hero__notes">
+            <div className="landing-hero__note landing-hero__note--top">会记得上次学到哪里</div>
+            <div className="landing-hero__note landing-hero__note--bottom">会引用老师知识库和家庭资料</div>
           </div>
         </section>
 
-        <section className="section-block">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow">Meet The Companions</span>
-              <h2>真实老师接口，儿童陪伴式呈现</h2>
-            </div>
-            <p>老师卡来自 `GET /api/v1/teachers`。如果接口暂时不可用，这里只显示占位，不伪造运行时老师数据。</p>
+        <section className="landing-companions" onMouseLeave={() => setHoveredId(null)}>
+          <div className="landing-companions__head">
+            <span className="eyebrow">Meet The Companions</span>
+            <h2>选一个孩子最喜欢的小动物伙伴，开启今天的探索吧。</h2>
+            <p>首页继续接真实老师接口，但展示昵称和形象已经改成更有陪伴感的小动物伙伴表达。</p>
           </div>
 
           {error ? (
             <div className="status-panel status-panel--error">
-              <strong>老师列表暂时不可用</strong>
+              <strong>伙伴列表暂时不可用</strong>
               <p>{error}</p>
             </div>
           ) : null}
 
-          <div className="teacher-showcase-grid">
-            {(loading ? [0, 1, 2] : heroTeachers).map((teacher, index) =>
-              typeof teacher === "number" ? (
-                <article key={teacher} className="showcase-card showcase-card--placeholder">
-                  <div className="placeholder-line placeholder-line--short" />
-                  <div className="placeholder-line" />
-                  <div className="placeholder-line placeholder-line--tall" />
+          <div className="landing-companions__grid">
+            {(loading ? [0, 1, 2] : companions).map((item, index) =>
+              typeof item === "number" ? (
+                <article key={item} className={`companion-card companion-card--placeholder${index === 0 ? " companion-card--active" : ""}`}>
+                  <div className="companion-card__bubble companion-card__bubble--visible">
+                    <span>{index === 0 ? "抱抱！今天也要开心呀！" : "今天想一起探索什么呢？"}</span>
+                  </div>
+                  <div className="companion-card__shell">
+                    <div className="placeholder-line placeholder-line--short" />
+                    <div className="placeholder-line placeholder-line--tall" />
+                    <div className="placeholder-line" />
+                  </div>
                 </article>
               ) : (
-                <article
-                  key={teacher.id}
-                  className="showcase-card"
-                  style={
-                    {
-                      "--card-accent": getTeacherBranding(teacher, index).accent,
-                      "--card-surface": getTeacherBranding(teacher, index).surface
-                    } as CSSProperties
-                  }
-                >
-                  <TeacherAvatar name={teacher.name} size="md" slug={teacher.slug} subtitle={teacher.headline} />
-                  <div className="showcase-card__copy">
-                    <strong>{teacher.name}</strong>
-                    <span>{teacher.headline}</span>
-                    <div className="tag-list">
-                      {teacher.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="tag-pill">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <Link className="button button--ghost" href={`/chat?teacherId=${teacher.id}`}>
-                    直接进入陪伴舱
-                  </Link>
-                </article>
+                <CompanionCard
+                  key={item.id}
+                  active={activeHoverId === item.id}
+                  companion={item}
+                  dimmed={Boolean(activeHoverId) && activeHoverId !== item.id}
+                  onEnter={() => setHoveredId(item.id)}
+                />
               )
             )}
           </div>
         </section>
 
-        <section className="section-block section-block--soft">
-          <div className="section-head">
+        <section className="landing-safety">
+          <div className="landing-safety__copy">
+            <div className="landing-safety__icon">
+              <ShieldCheck size={34} strokeWidth={2.4} />
+            </div>
             <div>
-              <span className="eyebrow">Why It Feels Different</span>
-              <h2>不是换皮聊天框，而是可持续的伴学体验</h2>
+              <h2>多重守护，家长无忧</h2>
+              <p>
+                我们采用专为儿童设计的 AI 过滤引擎，屏蔽所有不适内容。
+                <br />
+                让每一次陪伴都充满正能量与好奇心。
+              </p>
+            </div>
+            <div className="landing-safety__chips">
+              <div className="landing-safety__chip">
+                <Heart size={20} fill="currentColor" strokeWidth={2.4} />
+                <span>内容适龄化</span>
+              </div>
+              <div className="landing-safety__chip">
+                <ShieldCheck size={20} strokeWidth={2.4} />
+                <span>屏幕时间管理</span>
+              </div>
             </div>
           </div>
-          <div className="feature-grid">
-            {featureCards.map((feature) => (
-              <article key={feature.title} className="feature-card">
-                <strong>{feature.title}</strong>
-                <p>{feature.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
 
-        <section className="cta-banner">
-          <div>
-            <span className="eyebrow">Ready To Start</span>
-            <h2>先选一个伙伴，再把真实接口跑起来。</h2>
-            <p>登录后就能直接体验真实聊天、家庭资料上传和记忆管理，不再停留在静态页面。</p>
-          </div>
-          <div className="cta-banner__actions">
-            <Link className="button button--primary" href="/login">
-              马上开始
-            </Link>
-            <Link className="button button--ghost" href="/teachers">
-              查看伙伴
-            </Link>
+          <div className="landing-safety__mark">
+            <ShieldCheck size={280} strokeWidth={1.4} />
           </div>
         </section>
       </div>

@@ -7,6 +7,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getPreferences, getTeacher, getTeachers, listConversations, updatePreferences } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 import { TeacherAvatar } from "./teacher-avatar";
 
@@ -381,6 +382,8 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
   } = useWorkspace();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [companionsExpanded, setCompanionsExpanded] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [preferenceDraft, setPreferenceDraft] = useState<PreferenceResponse>({
@@ -396,6 +399,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
       preferences?.responseStyle !== preferenceDraft.responseStyle ||
       preferences?.correctionMode !== preferenceDraft.correctionMode);
   const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+  const selectedCompanion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
 
   function openSettings() {
     if (preferences) {
@@ -418,7 +422,6 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
   }
 
   const workspaceItems = [
-    { key: "chat", label: "陪伴对话", kind: "chat" as const },
     { key: "memory", label: "记忆花园", kind: "memory" as const },
     { key: "library", label: "家庭资料库", kind: "library" as const }
   ];
@@ -455,64 +458,77 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
         <div className="workspace-section">
           <div className="workspace-section__head">
             <strong>当前伙伴</strong>
-            <span>{selectedTeacher?.name ?? "等待老师加载"}</span>
+            <button
+              className="workspace-section__toggle"
+              type="button"
+              onClick={() => setCompanionsExpanded((current) => !current)}
+            >
+              {companionsExpanded ? "收起" : "切换"}
+            </button>
           </div>
-          {teachersLoading ? (
-            <div className="status-panel">正在加载伙伴列表...</div>
-          ) : (
-            <div className="workspace-teacher-list">
-              {teachers.map((teacher, index) => (
-                <button
-                  key={teacher.id}
-                  className={`workspace-teacher-card${selectedTeacherId === teacher.id ? " workspace-teacher-card--active" : ""}`}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTeacherId(teacher.id);
-                    setSidebarOpen(false);
-                  }}
-                  style={
-                    {
-                      "--teacher-accent": getTeacherBranding(teacher, index).accent,
-                      "--teacher-surface": getTeacherBranding(teacher, index).surface
-                    } as CSSProperties
-                  }
-                >
-                  <TeacherAvatar name={teacher.name} slug={teacher.slug} size="sm" subtitle={teacher.headline} />
-                  <div className="workspace-teacher-card__copy">
-                    <strong>{teacher.name}</strong>
-                    <span>{teacher.headline}</span>
-                  </div>
-                </button>
-              ))}
+          {selectedTeacher ? (
+            <div
+              className="workspace-partner-summary"
+              style={
+                {
+                  "--teacher-accent": branding.accent,
+                  "--teacher-surface": branding.surface
+                } as CSSProperties
+              }
+            >
+              <TeacherAvatar
+                name={selectedCompanion.displayName}
+                slug={selectedTeacher.slug}
+                size="sm"
+                subtitle={selectedCompanion.subtitle}
+              />
+              <div className="workspace-partner-summary__copy">
+                <strong>{selectedCompanion.displayName}</strong>
+                <span>{selectedCompanion.subtitle}</span>
+              </div>
             </div>
-          )}
-        </div>
+          ) : null}
 
-        <div className="workspace-section">
-          <div className="workspace-section__head">
-            <strong>功能区域</strong>
-          </div>
-          <div className="workspace-nav">
-            {workspaceItems.map((item) => (
-              <button
-                key={item.key}
-                className={`workspace-nav__item${workspaceKind === item.kind ? " workspace-nav__item--active" : ""}`}
-                type="button"
-                onClick={() => {
-                  goToWorkspace(item.kind);
-                  setSidebarOpen(false);
-                }}
-              >
-                <strong>{item.label}</strong>
-                <span>{getWorkspaceMeta(item.kind).description}</span>
-              </button>
-            ))}
-          </div>
+          {companionsExpanded ? (
+            teachersLoading ? (
+              <div className="status-panel">正在加载伙伴列表...</div>
+            ) : (
+              <div className="workspace-teacher-list">
+                {teachers.map((teacher, index) => {
+                  const companion = getCompanionIdentity(teacher.slug);
+
+                  return (
+                  <button
+                    key={teacher.id}
+                    className={`workspace-teacher-card${selectedTeacherId === teacher.id ? " workspace-teacher-card--active" : ""}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeacherId(teacher.id);
+                      setSidebarOpen(false);
+                    }}
+                    style={
+                      {
+                        "--teacher-accent": getTeacherBranding(teacher, index).accent,
+                        "--teacher-surface": getTeacherBranding(teacher, index).surface
+                      } as CSSProperties
+                    }
+                  >
+                    <TeacherAvatar name={companion.displayName} slug={teacher.slug} size="sm" subtitle={companion.subtitle} />
+                    <div className="workspace-teacher-card__copy">
+                      <strong>{companion.displayName}</strong>
+                      <span>{companion.subtitle}</span>
+                    </div>
+                  </button>
+                  );
+                })}
+              </div>
+            )
+          ) : null}
         </div>
 
         <div className="workspace-section workspace-section--grow">
           <div className="workspace-section__head">
-            <strong>当前伙伴的历史会话</strong>
+            <strong>历史会话</strong>
             <span>{teacherConversations.length} 个</span>
           </div>
           {conversationsLoading ? (
@@ -547,6 +563,9 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
             <span>{session?.user.role === "ADMIN" ? "运营账号" : "家庭账号"}</span>
           </div>
           <div className="workspace-account-card__actions">
+            <button className="button button--ghost" type="button" onClick={() => setToolsOpen(true)}>
+              工具箱
+            </button>
             <button className="button button--ghost" type="button" onClick={openSettings}>
               偏好设置
             </button>
@@ -579,17 +598,25 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
           </button>
           <div className="workspace-topbar__teacher">
             {selectedTeacher ? (
-              <TeacherAvatar name={selectedTeacher.name} slug={selectedTeacher.slug} size="sm" subtitle={selectedTeacher.headline} />
+              <TeacherAvatar
+                name={selectedCompanion.displayName}
+                slug={selectedTeacher.slug}
+                size="sm"
+                subtitle={selectedCompanion.subtitle}
+              />
             ) : null}
             <div className="workspace-topbar__copy">
               <span>{workspaceMeta.label}</span>
-              <strong>{teacherDetail?.name ?? selectedTeacher?.name ?? "蛋壳伴学"}</strong>
-              <p>{teacherDetail?.description ?? workspaceMeta.description}</p>
+              <strong>{selectedTeacher ? selectedCompanion.displayName : "蛋壳伴学"}</strong>
             </div>
           </div>
           <div className="workspace-topbar__actions">
+            <span className="workspace-chip workspace-chip--soft">{workspaceMeta.description}</span>
             {teacherDetailLoading ? <span className="workspace-chip">同步伙伴资料中</span> : null}
             {teacherDetail?.activeRule?.title ? <span className="workspace-chip">{teacherDetail.activeRule.title}</span> : null}
+            <button className="button button--ghost" type="button" onClick={() => setToolsOpen(true)}>
+              工具箱
+            </button>
             <button className="button button--ghost" type="button" onClick={openSettings}>
               偏好设置
             </button>
@@ -691,6 +718,40 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
               >
                 {savingPreferences ? "保存中..." : "保存偏好"}
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {toolsOpen ? (
+        <div className="modal-backdrop" onClick={() => setToolsOpen(false)}>
+          <section className="modal-panel modal-panel--compact" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-panel__header">
+              <div>
+                <span className="eyebrow">Companion Tools</span>
+                <h2>辅助能力</h2>
+              </div>
+              <button className="button button--ghost" type="button" onClick={() => setToolsOpen(false)}>
+                关闭
+              </button>
+            </div>
+
+            <div className="workspace-tools-grid">
+              {workspaceItems.map((item) => (
+                <button
+                  key={item.key}
+                  className={`workspace-utility-link${workspaceKind === item.kind ? " workspace-utility-link--active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    goToWorkspace(item.kind);
+                    setToolsOpen(false);
+                    setSidebarOpen(false);
+                  }}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{getWorkspaceMeta(item.kind).description}</span>
+                </button>
+              ))}
             </div>
           </section>
         </div>

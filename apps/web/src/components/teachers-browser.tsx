@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { getTeacher, getTeachers } from "../lib/api";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 import { SiteHeader } from "./site-header";
 import { TeacherAvatar } from "./teacher-avatar";
@@ -94,15 +95,21 @@ export function TeachersBrowser() {
           ) : null}
 
           <div className="teacher-browser-grid">
-            {visibleTeachers.map((teacher, index) =>
-              typeof teacher === "number" ? (
+            {visibleTeachers.map((teacher, index) => {
+              if (typeof teacher === "number") {
+                return (
                 <article key={teacher} className="teacher-browser-card teacher-browser-card--placeholder">
                   <div className="placeholder-line placeholder-line--short" />
                   <div className="placeholder-line" />
                   <div className="placeholder-line" />
                   <div className="placeholder-line placeholder-line--tall" />
                 </article>
-              ) : (
+                );
+              }
+
+              const companion = getCompanionIdentity(teacher.slug);
+
+              return (
                 <article
                   key={teacher.id}
                   className="teacher-browser-card"
@@ -113,11 +120,11 @@ export function TeachersBrowser() {
                     } as CSSProperties
                   }
                 >
-                  <TeacherAvatar name={teacher.name} slug={teacher.slug} size="lg" subtitle={teacher.headline} />
+                  <TeacherAvatar name={companion.displayName} slug={teacher.slug} size="lg" subtitle={companion.subtitle} />
                   <div className="teacher-browser-card__body">
                     <div className="teacher-browser-card__heading">
-                      <strong>{teacher.name}</strong>
-                      <span>{teacher.headline}</span>
+                      <strong>{companion.displayName}</strong>
+                      <span>{companion.subtitle}</span>
                     </div>
                     <p>{teacher.description}</p>
                     <div className="tag-list">
@@ -137,8 +144,8 @@ export function TeachersBrowser() {
                     </Link>
                   </div>
                 </article>
-              )
-            )}
+              );
+            })}
           </div>
         </section>
       </div>

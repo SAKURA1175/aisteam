@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { LottieMascot } from "./mascot/LottieMascot";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 
 type TeacherAvatarProps = {
@@ -17,6 +19,7 @@ const sizeClassMap = {
 
 export function TeacherAvatar({ slug, name, size = "md", subtitle }: TeacherAvatarProps) {
   const branding = getTeacherBranding(slug ? { slug } : null);
+  const identity = getCompanionIdentity(slug, name, subtitle);
 
   return (
     <div
@@ -31,12 +34,12 @@ export function TeacherAvatar({ slug, name, size = "md", subtitle }: TeacherAvat
       }
     >
       <div className="teacher-avatar__bubble">
-        <span className="teacher-avatar__glyph">{branding.glyph}</span>
+        <LottieMascot className="teacher-avatar__lottie" fallback={identity.glyph ?? branding.glyph} src={identity.animationPath} />
       </div>
       <div className="teacher-avatar__orbit" />
       <div className="teacher-avatar__label">
         <strong>{name}</strong>
-        {subtitle ? <span>{subtitle}</span> : <span>{branding.constellation}</span>}
+        {subtitle ? <span>{subtitle}</span> : <span>{identity.subtitle ?? branding.constellation}</span>}
       </div>
     </div>
   );

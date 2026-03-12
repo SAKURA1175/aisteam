@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deleteKnowledgeFile, listUserKnowledgeFiles, uploadUserKnowledgeFile } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 import { TeacherAvatar } from "./teacher-avatar";
 import { useWorkspace } from "./workspace-shell";
@@ -40,6 +41,7 @@ export function LibraryWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+  const companion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
 
   useEffect(() => {
     if (!token || !selectedTeacher) {
@@ -125,10 +127,10 @@ export function LibraryWorkspace() {
       >
         <div className="workspace-hero__copy">
           <span className="eyebrow">Family Library</span>
-          <h1>{selectedTeacher ? `${selectedTeacher.name} 的家庭资料库` : "等待伙伴上下文"}</h1>
+          <h1>{selectedTeacher ? `${companion.displayName} 的家庭资料库` : "等待伙伴上下文"}</h1>
           <p>资料会按“当前家庭 + 当前伙伴”隔离。聊天检索时，系统会自动把这些资料合并到当前伙伴的回答来源中。</p>
         </div>
-        {selectedTeacher ? <TeacherAvatar name={selectedTeacher.name} slug={selectedTeacher.slug} size="lg" subtitle={selectedTeacher.headline} /> : null}
+        {selectedTeacher ? <TeacherAvatar name={companion.displayName} slug={selectedTeacher.slug} size="lg" subtitle={companion.subtitle} /> : null}
       </div>
 
       {error ? (
