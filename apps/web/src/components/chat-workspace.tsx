@@ -1,17 +1,47 @@
 "use client";
 
 import type { ChatMessageItem, CitationItem, ConversationSummary } from "@tutormarket/types";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createConversation, getMessages, streamConversationMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { getCompanionIdentity } from "../lib/companion-identity";
 import { getTeacherBranding } from "../lib/teacher-branding";
 import { useWorkspace } from "./workspace-shell";
+import { LottieMascot } from "./mascot/LottieMascot";
 
 const citationSourceLabel = {
   teacher_knowledge: "伙伴知识库",
   student_private: "家庭资料库"
 } as const;
+
+type StarterPrompt = {
+  label: string;
+  title: string;
+  hint: string;
+  prompt: string;
+};
+
+function hashString(input: string) {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 33) ^ input.charCodeAt(i);
+  }
+  return Math.abs(hash);
+}
+
+function getDailyTip(displayName: string) {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const tips = [
+    `先从一句“${displayName} 你好”开始，让孩子把注意力拉回来。`,
+    "每次只做 5-10 分钟，小小进步更容易坚持。",
+    "孩子走神没关系，先夸一句，再继续下一步。",
+    "把问题变成选择题：想听故事，还是想玩词语？",
+    "如果情绪低落，先做安抚，再做学习。"
+  ];
+
+  return tips[hashString(`${todayKey}:${displayName}`) % tips.length] ?? tips[0];
+}
 
 export function ChatWorkspace() {
   const { session, token } = useAuth();
@@ -36,6 +66,7 @@ export function ChatWorkspace() {
   const chatStreamRef = useRef<HTMLDivElement | null>(null);
   const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
   const companion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
+  const dailyTip = useMemo(() => getDailyTip(companion.displayName), [companion.displayName]);
 
   useEffect(() => {
     if (!token || !activeConversationId) {
@@ -65,34 +96,58 @@ export function ChatWorkspace() {
     chatStreamRef.current.scrollTop = chatStreamRef.current.scrollHeight;
   }, [loadingMessages, messages, streaming]);
 
-  const starterPrompts = useMemo(() => {
+  const starterPrompts = useMemo<StarterPrompt[]>(() => {
     if (!selectedTeacher) {
       return [
-        { label: "共读热身", hint: "先轻松开口", prompt: "先和孩子做一个 5 分钟的绘本热身，用轻松提问带他进入状态。" },
-        { label: "表达练习", hint: "鼓励孩子多说", prompt: "围绕今天的故事内容，设计 3 个适合孩子表达的小问题。" },
-        { label: "睡前安抚", hint: "柔和陪伴节奏", prompt: "现在是睡前，陪孩子聊一段安静温柔的小故事，不要太兴奋。" },
-        { label: "复习引导", hint: "从上次继续", prompt: "结合孩子最近一次对话，先复习再推进一点新内容。" }
+        {
+          label: "共读热身",
+          title: "5 分钟绘本开场",
+          hint: "先轻松开口",
+          prompt: "先和孩子做一个 5 分钟的绘本热身，用轻松提问带他进入状态。"
+        },
+        {
+          label: "表达练习",
+          title: "3 个小问题",
+          hint: "鼓励孩子多说",
+          prompt: "围绕今天的故事内容，设计 3 个适合孩子表达的小问题。"
+        },
+        {
+          label: "睡前安抚",
+          title: "安静的小故事",
+          hint: "柔和陪伴节奏",
+          prompt: "现在是睡前，陪孩子聊一段安静温柔的小故事，不要太兴奋。"
+        },
+        {
+          label: "复习引导",
+          title: "从上次继续",
+          hint: "先复习再推进",
+          prompt: "结合孩子最近一次对话，先复习再推进一点新内容。"
+        }
       ];
     }
 
     return [
       {
         label: "共读热身",
+        title: "轻松开场",
         hint: branding.promptHint,
         prompt: `请以 ${companion.displayName} 的风格，先根据孩子现在的情况安排一个轻松开场。`
       },
       {
         label: "互动练习",
+        title: "10 分钟小游戏",
         hint: "10 分钟可完成",
         prompt: `围绕「${companion.subtitle}」，设计一个 10 分钟的互动练习。`
       },
       {
         label: "睡前陪伴",
+        title: "慢一点，轻一点",
         hint: "节奏慢一点",
         prompt: `请以 ${companion.displayName} 的语气，做一段适合睡前的安静陪伴对话。`
       },
       {
         label: "复习推进",
+        title: "复习再前进",
         hint: "从上次继续",
         prompt: `继续孩子和 ${companion.displayName} 上次的节奏，先复习再推进一点新内容。`
       }
@@ -226,10 +281,20 @@ export function ChatWorkspace() {
   return (
     <section className="workspace-page">
       <div className="chat-context-bar">
-        <div className="chat-context-bar__copy">
-          <span className="chat-context-bar__eyebrow">陪伴对话</span>
-          <strong>{companion.displayName}</strong>
-          <span>{companion.subtitle}</span>
+        <div className="chat-context-bar__left">
+          <div className="chat-context-bar__mascot" aria-hidden="true">
+            <LottieMascot
+              className="chat-context-bar__mascot-animation"
+              fallback={companion.glyph}
+              src={companion.animationPath}
+            />
+          </div>
+          <div className="chat-context-bar__copy">
+            <span className="chat-context-bar__eyebrow">陪伴对话</span>
+            <strong>{companion.displayName}</strong>
+            <span>{companion.subtitle}</span>
+            <span className="chat-context-bar__tip">今日小提示：{dailyTip}</span>
+          </div>
         </div>
         <div className="chat-context-bar__meta">
           <span className="workspace-chip">真实 SSE</span>
@@ -252,14 +317,28 @@ export function ChatWorkspace() {
           {loadingMessages ? (
             <div className="status-panel">正在加载会话消息...</div>
           ) : messages.length ? (
-            messages.map((message) => (
-              <article key={message.id} className={`chat-message chat-message--${message.role === "ASSISTANT" ? "assistant" : "user"}`}>
+            messages.map((message, index) => {
+              const isAssistant = message.role === "ASSISTANT";
+              const isStreamingAssistant = streaming && isAssistant && index === messages.length - 1;
+
+              return (
+                <article key={message.id} className={`chat-message chat-message--${isAssistant ? "assistant" : "user"}`}>
                 <div className="chat-message__meta">
-                  <span>{message.role === "ASSISTANT" ? companion.displayName : session?.user.displayName ?? "你"}</span>
+                  <span>{isAssistant ? companion.displayName : session?.user.displayName ?? "你"}</span>
                   <span>{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
                 <div className="chat-message__content">
-                  <p>{message.content || (message.role === "ASSISTANT" && streaming ? "正在组织回答..." : "")}</p>
+                  {isStreamingAssistant ? (
+                    <div className="chat-message__status">
+                      <span>{companion.displayName} 正在想</span>
+                      <span className="typing-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    </div>
+                  ) : null}
+                  <p>{message.content}</p>
                 </div>
                 {message.citations.length ? (
                   <div className="citation-stack">
@@ -276,7 +355,8 @@ export function ChatWorkspace() {
                   </div>
                 ) : null}
               </article>
-            ))
+              );
+            })
           ) : (
             <div className="empty-stage">
               <div className="empty-stage__copy">
@@ -287,8 +367,16 @@ export function ChatWorkspace() {
               <div className="starter-grid">
                 {starterPrompts.map((prompt) => (
                   <button key={prompt.prompt} className="starter-card" type="button" onClick={() => setDraft(prompt.prompt)}>
+                    <Image
+                      className="starter-card__mascot"
+                      src="/images/mascots/egg-chick.svg"
+                      width={26}
+                      height={26}
+                      alt=""
+                      aria-hidden="true"
+                    />
                     <span className="starter-card__label">{prompt.label}</span>
-                    <strong>{prompt.prompt}</strong>
+                    <strong>{prompt.title}</strong>
                     <span className="starter-card__hint">{prompt.hint}</span>
                   </button>
                 ))}

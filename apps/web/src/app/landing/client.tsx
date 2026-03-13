@@ -3,10 +3,11 @@
 import type { TeacherSummary } from "@tutormarket/types";
 import Link from "next/link";
 import type { ComponentType, CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Heart, ShieldCheck, Sparkles, Sun } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { ShieldCheck } from "lucide-react";
 import { LottieMascot } from "@/components/mascot/LottieMascot";
-import { useAuth } from "@/lib/auth";
+import { BallPit } from "@/components/ballpit/Ballpit3D";
+import FallingText from "@/components/falling-text/FallingText";
 import { getTeachers } from "@/lib/api";
 import { getCompanionIdentity } from "@/lib/companion-identity";
 import { getTeacherBranding } from "@/lib/teacher-branding";
@@ -58,11 +59,11 @@ function LandingButton({
 }: {
   href: string;
   children: ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary";
   className?: string;
 }) {
   return (
-    <Link className={`landing-button landing-button--${variant} ${className}`.trim()} href={href}>
+    <Link className={`duo-btn duo-btn--${variant} ${className}`.trim()} href={href}>
       {children}
     </Link>
   );
@@ -70,56 +71,46 @@ function LandingButton({
 
 function CompanionCard({
   companion,
-  dimmed,
   active,
   onEnter
 }: {
   companion: CompanionCardViewModel;
-  dimmed: boolean;
   active: boolean;
   onEnter: () => void;
 }) {
-  const Icon = companion.icon;
-
   return (
     <article
-      className={`companion-card${active ? " companion-card--active" : ""}${dimmed ? " companion-card--dimmed" : ""}`}
+      className="duo-card"
       style={
         {
-          "--companion-accent": companion.accent,
-          "--companion-surface": companion.surface
+          borderColor: active ? "#1cb0f6" : "#e5e5e5",
+          backgroundColor: active ? "#ddf4ff" : "#ffffff",
+          transform: active ? "translateY(-4px)" : "none",
+          boxShadow: active ? "0 6px 0 #1899d6" : "none"
         } as CSSProperties
       }
       onMouseEnter={onEnter}
     >
-      <div className={`companion-card__bubble${active ? " companion-card__bubble--visible" : ""}`}>
-        <span>{active ? companion.hoverQuote : companion.quote}</span>
+      <div className="duo-card__mascot">
+        <LottieMascot className="companion-card__animation" fallback={companion.glyph} src={companion.animationPath} />
       </div>
 
-      <div className="companion-card__shell">
-        <div className="companion-card__mascot">
-          <LottieMascot className="companion-card__animation" fallback={companion.glyph} src={companion.animationPath} />
-        </div>
-
-        <div className="companion-card__copy">
-          <strong>{companion.name}</strong>
-          <p>{companion.headline}</p>
-          <div className="companion-card__badge">
-            <Icon size={18} strokeWidth={2.4} />
-            <span>{companion.badge}</span>
-          </div>
-        </div>
-
-        <LandingButton className="companion-card__cta" href={companion.ctaHref} variant="ghost">
-          选择我进入陪伴舱
-        </LandingButton>
+      <div className="duo-card__name">
+        {companion.name}
       </div>
+      
+      <div className="duo-card__desc">
+        {companion.headline}
+      </div>
+
+      <LandingButton href={companion.ctaHref} variant="secondary">
+        选择我进入陪伴舱
+      </LandingButton>
     </article>
   );
 }
 
 export default function LandingPageClient() {
-  const { initialized, session } = useAuth();
   const [teachers, setTeachers] = useState<TeacherSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,147 +134,87 @@ export default function LandingPageClient() {
   const activeHoverId = hoveredId ?? companions[0]?.id ?? null;
 
   return (
-    <main className="landing-carnival">
-      <div className="landing-carnival__shell">
-        <header className="landing-topbar">
-          <Link className="landing-brand" href="/">
-            <div className="landing-brand__symbol">蛋</div>
-            <div className="landing-brand__copy">
-              <strong>蛋壳伴学</strong>
-              <span>温柔、会记得孩子的 AI 陪伴伙伴</span>
-            </div>
-          </Link>
+    <div className="duo-landing">
+      <header className="duo-header">
+        <Link href="/" className="duo-brand">
+          <div className="duo-brand__egg">蛋</div>
+          <div className="duo-brand__text">蛋壳伴学</div>
+        </Link>
+        <LandingButton href="/chat" variant="primary">
+          进入陪伴舱
+        </LandingButton>
+      </header>
 
-          <div className="landing-topbar__actions">
-            <div className="landing-topbar__streak">
-              <Sun size={22} strokeWidth={2.6} />
-              <span>陪伴第 12 天</span>
-            </div>
-            {initialized && session ? (
-              <>
-                <div className="landing-topbar__account">
-                  <strong>{session.user.displayName}</strong>
-                  <span>{session.user.role === "ADMIN" ? "运营工作台" : "家庭陪伴模式"}</span>
-                </div>
-                <LandingButton href="/chat" variant="primary">
-                  进入陪伴舱
-                </LandingButton>
-              </>
-            ) : (
-              <>
-                <LandingButton href="/login" variant="ghost">
-                  家长端
-                </LandingButton>
-                <LandingButton href="/chat" variant="primary">
-                  进入陪伴舱
-                </LandingButton>
-              </>
-            )}
-          </div>
-        </header>
+      <section style={{ position: "relative", height: "100vh", width: "100%", overflow: "hidden", margin: 0, padding: 0 }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }}>
+          <BallPit
+            count={250}
+            gravity={0.8}
+            friction={0.9975}
+            wallBounce={0.95}
+            followCursor={true}
+            colors={[0xff6b9d, 0xffa500, 0xffd93d, 0x6bcf7f, 0x4ecdc4, 0x45b7d1, 0xa78bfa, 0xf472b6, 0xfb923c, 0xfbbf24]}
+          />
+        </div>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, pointerEvents: "none" }}>
+          <FallingText
+            text="童趣 与 陪伴 如此简单"
+            highlightWords={["童趣", "陪伴"]}
+            trigger="click"
+            backgroundColor="transparent"
+            wireframes={false}
+            gravity={0.56}
+            fontSize="4rem"
+            mouseConstraintStiffness={0.9}
+          />
+        </div>
+      </section>
 
-        <section className="landing-hero">
-          <div className="landing-hero__badge">
-            <Sparkles size={20} strokeWidth={2.7} />
-            <span>AI 驱动 · 治愈系幼教伴学</span>
-          </div>
-
-          <div className="landing-hero__content">
-            <h1>
-              学习，不该是
-              <br />
-              <span>孤独的旅程。</span>
-            </h1>
-            <p>
-              小伙伴们都在蛋壳里等你哦！选一个你最喜欢的小动物，
-              <br />
-              开启今天的探索吧。
-            </p>
-          </div>
-
-          <div className="landing-hero__actions">
-            <LandingButton className="landing-hero__primary" href="/chat" variant="primary">
-              开始冒险
-              <ChevronRight size={28} strokeWidth={3} />
-            </LandingButton>
-          </div>
-
-          <div className="landing-hero__notes">
-            <div className="landing-hero__note landing-hero__note--top">会记得上次学到哪里</div>
-            <div className="landing-hero__note landing-hero__note--bottom">会引用老师知识库和家庭资料</div>
-          </div>
-        </section>
-
-        <section className="landing-companions" onMouseLeave={() => setHoveredId(null)}>
-          <div className="landing-companions__head">
-            <span className="eyebrow">Meet The Companions</span>
-            <h2>选一个孩子最喜欢的小动物伙伴，开启今天的探索吧。</h2>
-            <p>首页继续接真实老师接口，但展示昵称和形象已经改成更有陪伴感的小动物伙伴表达。</p>
-          </div>
-
+      <section id="companions" className="duo-companions" onMouseLeave={() => setHoveredId(null)}>
+        <div className="duo-container">
+          <h2 className="duo-section-title">选一个喜欢的伙伴开启探索吧！</h2>
+          
           {error ? (
-            <div className="status-panel status-panel--error">
-              <strong>伙伴列表暂时不可用</strong>
-              <p>{error}</p>
+            <div style={{ textAlign: "center", color: "red", marginBottom: "24px" }}>
+              伙伴列表暂时不可用: {error}
             </div>
           ) : null}
 
-          <div className="landing-companions__grid">
-            {(loading ? [0, 1, 2] : companions).map((item, index) =>
+          <div className="duo-grid">
+            {(loading ? [0, 1, 2] : companions).map((item) =>
               typeof item === "number" ? (
-                <article key={item} className={`companion-card companion-card--placeholder${index === 0 ? " companion-card--active" : ""}`}>
-                  <div className="companion-card__bubble companion-card__bubble--visible">
-                    <span>{index === 0 ? "抱抱！今天也要开心呀！" : "今天想一起探索什么呢？"}</span>
-                  </div>
-                  <div className="companion-card__shell">
-                    <div className="placeholder-line placeholder-line--short" />
-                    <div className="placeholder-line placeholder-line--tall" />
-                    <div className="placeholder-line" />
-                  </div>
-                </article>
+                <div key={item} className="duo-card" style={{ opacity: 0.5 }}>
+                  <div className="duo-card__mascot" style={{ background: "#f0f0f0", borderRadius: "50%" }}></div>
+                  <div style={{ width: "60%", height: "24px", background: "#f0f0f0", marginBottom: "8px", borderRadius: "12px" }}></div>
+                  <div style={{ width: "80%", height: "16px", background: "#f0f0f0", marginBottom: "16px", borderRadius: "8px" }}></div>
+                  <div style={{ width: "100%", height: "40px", background: "#f0f0f0", borderRadius: "16px" }}></div>
+                </div>
               ) : (
                 <CompanionCard
                   key={item.id}
                   active={activeHoverId === item.id}
                   companion={item}
-                  dimmed={Boolean(activeHoverId) && activeHoverId !== item.id}
                   onEnter={() => setHoveredId(item.id)}
                 />
               )
             )}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="landing-safety">
-          <div className="landing-safety__copy">
-            <div className="landing-safety__icon">
-              <ShieldCheck size={34} strokeWidth={2.4} />
+      <section className="duo-safety">
+        <div className="duo-container">
+          <div className="duo-safety__inner">
+            <div className="duo-safety__icon">
+              <ShieldCheck size={80} strokeWidth={2} />
             </div>
-            <div>
+            <div className="duo-safety__text">
               <h2>多重守护，家长无忧</h2>
-              <p>
-                我们采用专为儿童设计的 AI 过滤引擎，屏蔽所有不适内容。
-                <br />
-                让每一次陪伴都充满正能量与好奇心。
-              </p>
-            </div>
-            <div className="landing-safety__chips">
-              <div className="landing-safety__chip">
-                <Heart size={20} fill="currentColor" strokeWidth={2.4} />
-                <span>内容适龄化</span>
-              </div>
-              <div className="landing-safety__chip">
-                <ShieldCheck size={20} strokeWidth={2.4} />
-                <span>屏幕时间管理</span>
-              </div>
+              <p>我们采用专为儿童设计的 AI 过滤引擎，屏蔽所有不适内容。<br/>同时支持内容适龄化与屏幕时间管理，让每一次陪伴都充满正能量与好奇心。</p>
             </div>
           </div>
-
-          <div className="landing-safety__mark">
-            <ShieldCheck size={280} strokeWidth={1.4} />
-          </div>
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+    </div>
   );
 }

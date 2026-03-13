@@ -1,0 +1,58 @@
+.falling-text-container {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* Let clicks pass through to Ballpit when not interacting with text */
+  overflow: hidden;
+}
+
+.falling-text-target {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  pointer-events: auto; /* allow clicking the text to trigger */
+  cursor: pointer;
+  font-weight: 800;
+  color: #333; 
+  text-shadow: 0 4px 12px rgba(255,255,255,0.8);
+  /* 确保物理引擎接管前文字正常居中 */
+  position: relative;
+  z-index: 2;
+  padding: 20px;
+}
+
+.word {
+  display: inline-block;
+  user-select: none;
+  transition: transform 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.word.highlighted {
+  color: #ff6b9d; /* 活泼色系粉色 */
+  font-weight: 900;
+  font-size: 1.15em; 
+  text-shadow: 0 0 10px rgba(255, 107, 157, 0.5), 0 4px 12px rgba(255,255,255,0.8);
+}
+
+.word.highlighted-warm {
+  color: #ff9f43; /* 暖色系橙色 */
+  font-weight: 900;
+  font-size: 1.15em; 
+  text-shadow: 0 0 10px rgba(255, 159, 67, 0.5), 0 4px 12px rgba(255,255,255,0.8);
+}
+
+.falling-text-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none; /* 移除事件拦截，避免锁死滚动 */
+}
