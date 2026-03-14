@@ -2031,9 +2031,21 @@ textarea {
 }
 
 .chat-input {
+  width: 100%;
   min-height: 124px;
   border-radius: 22px;
+  border: 2px solid #e5e5e5;
+  background: #f7f7f7;
+  transition: all 0.2s ease;
   box-shadow: none;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chat-input:focus {
+  background: #ffffff;
+  border-color: #1cb0f6;
+  box-shadow: 0 4px 0 #1899d6;
 }
 
 .composer-actions {
@@ -2150,7 +2162,7 @@ textarea {
     flex-wrap: wrap;
   }
 
-  .composer-actions .button {
+  .composer-actions .button, .composer-actions .duo-btn {
     flex: 1 1 100%;
   }
 

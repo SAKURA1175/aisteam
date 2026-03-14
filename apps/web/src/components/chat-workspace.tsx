@@ -410,13 +410,13 @@ export function ChatWorkspace() {
             rows={5}
           />
           <div className="composer-actions">
-            <button className="button button--ghost" type="button" onClick={beginNewConversation}>
+            <button className="duo-btn duo-btn--ghost py-2 text-sm" type="button" onClick={beginNewConversation}>
               新建会话
             </button>
-            <button className="button button--ghost" type="button" onClick={() => setDraft(starterPrompts[0]?.prompt ?? "")}>
+            <button className="duo-btn duo-btn--ghost py-2 text-sm" type="button" onClick={() => setDraft(starterPrompts[0]?.prompt ?? "")}>
               填入示例
             </button>
-            <button className="button button--primary" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>
+            <button className="duo-btn duo-btn--primary px-8 py-3 text-base" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>
               {streaming ? "发送中..." : "发送消息"}
             </button>
           </div>

@@ -445,7 +445,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
         </div>
 
         <button
-          className="button button--primary button--full"
+          className="duo-btn duo-btn--primary duo-btn--large"
           type="button"
           onClick={() => {
             beginNewConversation();
@@ -563,14 +563,14 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
             <span>{session?.user.role === "ADMIN" ? "运营账号" : "家庭账号"}</span>
           </div>
           <div className="workspace-account-card__actions">
-            <button className="button button--ghost" type="button" onClick={() => setToolsOpen(true)}>
+            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(true)}>
               工具箱
             </button>
-            <button className="button button--ghost" type="button" onClick={openSettings}>
+            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={openSettings}>
               偏好设置
             </button>
             <button
-              className="button button--ghost"
+              className="duo-btn duo-btn--ghost py-2.5 text-sm"
               type="button"
               onClick={() => {
                 logout();
@@ -614,10 +614,10 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
             <span className="workspace-chip workspace-chip--soft">{workspaceMeta.description}</span>
             {teacherDetailLoading ? <span className="workspace-chip">同步伙伴资料中</span> : null}
             {teacherDetail?.activeRule?.title ? <span className="workspace-chip">{teacherDetail.activeRule.title}</span> : null}
-            <button className="button button--ghost" type="button" onClick={() => setToolsOpen(true)}>
+            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(true)}>
               工具箱
             </button>
-            <button className="button button--ghost" type="button" onClick={openSettings}>
+            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={openSettings}>
               偏好设置
             </button>
           </div>
@@ -643,7 +643,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
                 <span className="eyebrow">Companion Preferences</span>
                 <h2>调整家庭陪伴偏好</h2>
               </div>
-              <button className="button button--ghost" type="button" onClick={() => setSettingsOpen(false)}>
+              <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setSettingsOpen(false)}>
                 关闭
               </button>
             </div>
@@ -697,7 +697,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
 
             <div className="modal-panel__actions">
               <button
-                className="button button--ghost"
+                className="duo-btn duo-btn--ghost py-2.5 text-sm"
                 disabled={!preferences}
                 type="button"
                 onClick={() => {
@@ -711,7 +711,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
                 重置
               </button>
               <button
-                className="button button--primary"
+                className="duo-btn duo-btn--primary"
                 disabled={!preferences || !hasPreferenceChanges || savingPreferences}
                 type="button"
                 onClick={() => void handlePreferenceSave()}
@@ -731,7 +731,7 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
                 <span className="eyebrow">Companion Tools</span>
                 <h2>辅助能力</h2>
               </div>
-              <button className="button button--ghost" type="button" onClick={() => setToolsOpen(false)}>
+              <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(false)}>
                 关闭
               </button>
             </div>
