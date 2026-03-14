@@ -164,7 +164,7 @@ textarea {
   box-shadow: 0 16px 30px rgba(232, 115, 74, 0.24);
 }
 
-.button--ghost_legacy {
+.button--ghost {
   color: var(--ink-strong);
   border-color: rgba(210, 164, 127, 0.28);
   background: rgba(255, 255, 255, 0.82);
@@ -2267,6 +2267,21 @@ textarea {
 .duo-btn--secondary:active {
   box-shadow: 0 0 0 #e5e5e5;
   transform: translateY(4px);
+}
+
+.duo-btn--ghost {
+  background-color: transparent;
+  color: #afafaf;
+  border: 2px solid transparent;
+  box-shadow: none;
+}
+.duo-btn--ghost:hover {
+  background-color: #f7f7f7;
+  color: #777777;
+}
+.duo-btn--ghost:active {
+  background-color: #e5e5e5;
+  transform: translateY(2px);
 }
 
 .duo-btn--large {
