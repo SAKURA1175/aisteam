@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Transition, type TargetAndTransition, type VariantLabels } from 'framer-motion';
 
 import './RotatingText.css';
 
@@ -11,10 +11,10 @@ function cn(...classes: unknown[]) {
 
 interface RotatingTextProps {
   texts: string[];
-  transition?: unknown;
-  initial?: unknown;
-  animate?: unknown;
-  exit?: unknown;
+  transition?: Transition;
+  initial?: boolean | TargetAndTransition | VariantLabels;
+  animate?: boolean | TargetAndTransition | VariantLabels;
+  exit?: TargetAndTransition | VariantLabels;
   animatePresenceMode?: "sync" | "popLayout" | "wait";
   animatePresenceInitial?: boolean;
   rotationInterval?: number;
@@ -163,7 +163,7 @@ const RotatingText = forwardRef((props: RotatingTextProps, ref) => {
   }, [next, rotationInterval, auto]);
 
   return (
-    <motion.span className={cn('text-rotate', mainClassName)} {...rest} layout transition={transition as unknown}>
+    <motion.span className={cn('text-rotate', mainClassName)} {...(rest as Record<string, unknown>)} layout transition={transition}>
       <span className="text-rotate-sr-only">{texts[currentTextIndex]}</span>
       <AnimatePresence mode={animatePresenceMode} initial={animatePresenceInitial}>
         <motion.span
@@ -183,7 +183,7 @@ const RotatingText = forwardRef((props: RotatingTextProps, ref) => {
                     animate={animate}
                     exit={exit}
                     transition={{
-                      ...(transition as unknown),
+                      ...(transition as Record<string, unknown>),
                       delay: getStaggerDelay(
                         previousCharsCount + charIndex,
                         array.reduce((sum, word) => sum + word.characters.length, 0)

@@ -23,7 +23,7 @@ public class UserEntity {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String email;
 
     @Column(name = "password_hash", nullable = false)
@@ -31,6 +31,10 @@ public class UserEntity {
 
     @Column(name = "display_name", nullable = false)
     private String displayName;
+
+    @Deprecated
+    @Column(name = "wechat_open_id", unique = true)
+    private String wechatOpenId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -82,6 +86,14 @@ public class UserEntity {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getWechatOpenId() {
+        return wechatOpenId;
+    }
+
+    public void setWechatOpenId(String wechatOpenId) {
+        this.wechatOpenId = wechatOpenId;
     }
 
     public UserRole getRole() {

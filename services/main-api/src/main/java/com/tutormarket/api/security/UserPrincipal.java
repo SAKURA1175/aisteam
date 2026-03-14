@@ -30,6 +30,6 @@ public record UserPrincipal(
 
     @Override
     public String getUsername() {
-        return email;
+        return email != null ? email : userId.toString();
     }
 }

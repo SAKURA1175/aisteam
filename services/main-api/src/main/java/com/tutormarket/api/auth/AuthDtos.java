@@ -24,9 +24,35 @@ public final class AuthDtos {
     ) {
     }
 
+    public record WeChatLoginRequest(
+            @NotBlank String code
+    ) {
+    }
+
+    public record WeChatQrConfigResponse(
+            String appId,
+            String redirectUri,
+            String scope,
+            String state
+    ) {
+    }
+
+    public record WeChatExchangeRequest(
+            @NotBlank String code,
+            @NotBlank String state
+    ) {
+    }
+
     public record AuthResponse(
             String accessToken,
             UserProfileResponse user
+    ) {
+    }
+
+    public record WeChatAuthResponse(
+            String accessToken,
+            UserProfileResponse user,
+            String nextPath
     ) {
     }
 

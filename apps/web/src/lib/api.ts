@@ -11,7 +11,10 @@ import type {
   PreferenceResponse,
   TeacherDetail,
   TeacherSummary,
-  UpdateMemoryRequest
+  UpdateMemoryRequest,
+  WeChatAuthResponse,
+  WeChatExchangeRequest,
+  WeChatQrConfigResponse
 } from "@tutormarket/types";
 
 const API_PREFIX = "/backend";
@@ -78,6 +81,18 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return apiFetch<AuthResponse>("/api/v1/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password })
+  });
+}
+
+export async function getWechatQrConfig(nextPath?: string): Promise<WeChatQrConfigResponse> {
+  const suffix = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
+  return apiFetch<WeChatQrConfigResponse>(`/api/v1/auth/wechat/qr-config${suffix}`);
+}
+
+export async function exchangeWechatLogin(payload: WeChatExchangeRequest): Promise<WeChatAuthResponse> {
+  return apiFetch<WeChatAuthResponse>("/api/v1/auth/wechat/exchange", {
+    method: "POST",
+    body: JSON.stringify(payload)
   });
 }
 

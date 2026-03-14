@@ -16,12 +16,32 @@ export function SiteHeader() {
 
   return (
     <header className="site-header">
-      <Link className="brand-lockup" href="/">
-        <span className="brand-lockup__symbol">蛋</span>
-        <span className="brand-lockup__copy">
-          <strong>蛋壳伴学</strong>
-          <span>温柔、会记得孩子的 AI 陪伴伙伴</span>
-        </span>
+      <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center", 
+          color: "#5fd801",
+          fontWeight: "900", 
+          fontSize: "2.6rem",
+          fontFamily: '"ZCOOL KuaiLe", sans-serif',
+          textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)",
+          lineHeight: 1
+        }}>
+          蛋
+        </div>
+        <div style={{ 
+          fontSize: "1.8rem", 
+          fontWeight: "900", 
+          color: "#5fd801",
+          letterSpacing: "0.02em",
+          fontFamily: '"ZCOOL KuaiLe", "Nunito", sans-serif',
+          textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)",
+          lineHeight: 1,
+          paddingTop: "0.2rem"
+        }}>
+          蛋壳伴学
+        </div>
       </Link>
       <nav className="site-nav" aria-label="Primary">
         {links.map((link) => (
@@ -47,7 +67,7 @@ export function SiteHeader() {
             >
               退出
             </button>
-            <Link className="button button--primary" href="/chat">
+            <Link className="button button--primary" style={{ background: "linear-gradient(135deg, #74d61c 0%, #5bb800 100%)", border: "none", color: "white" }} href="/chat">
               进入陪伴舱
             </Link>
           </>
@@ -56,7 +76,7 @@ export function SiteHeader() {
             <Link className="button button--ghost" href="/teachers">
               看看伙伴
             </Link>
-            <Link className="button button--primary" href="/login">
+            <Link className="button button--primary" style={{ background: "linear-gradient(135deg, #74d61c 0%, #5bb800 100%)", border: "none", color: "white" }} href="/login">
               家长登录
             </Link>
           </>

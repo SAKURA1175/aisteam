@@ -9,6 +9,10 @@ spring:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:tutormarket}
     username: ${POSTGRES_USER:tutormarket}
     password: ${POSTGRES_PASSWORD:tutormarket}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     open-in-view: false
     hibernate:
@@ -50,6 +54,11 @@ app:
     secret-key: ${MINIO_ROOT_PASSWORD:minioadmin}
     bucket: ${MINIO_BUCKET:teacher-knowledge}
     path-style-access-enabled: true
+  wechat:
+    open-app-id: ${WECHAT_OPEN_APP_ID:}
+    open-app-secret: ${WECHAT_OPEN_APP_SECRET:}
+    redirect-uri: ${WECHAT_REDIRECT_URI:}
+    state-ttl-seconds: ${WECHAT_STATE_TTL_SECONDS:300}
 
 logging:
   level:

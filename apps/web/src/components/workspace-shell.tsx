@@ -1,15 +1,11 @@
 "use client";
 
 import type { ConversationSummary, PreferenceResponse, TeacherDetail, TeacherSummary } from "@tutormarket/types";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getPreferences, getTeacher, getTeachers, listConversations, updatePreferences } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { getCompanionIdentity } from "../lib/companion-identity";
-import { getTeacherBranding } from "../lib/teacher-branding";
-import { TeacherAvatar } from "./teacher-avatar";
 
 const SELECTED_TEACHER_STORAGE_KEY = "eggshell.selected_teacher_v1";
 
@@ -59,36 +55,11 @@ function buildNextPath(pathname: string, queryString: string) {
 }
 
 function getWorkspaceKind(pathname: string): WorkspaceKind {
-  if (pathname.startsWith("/chat/library")) {
-    return "library";
-  }
-
-  if (pathname.startsWith("/chat/memory")) {
-    return "memory";
-  }
-
+  if (pathname.includes("/memory")) return "memory";
+  if (pathname.includes("/library")) return "library";
   return "chat";
 }
 
-function getWorkspaceMeta(kind: WorkspaceKind) {
-  switch (kind) {
-    case "memory":
-      return {
-        label: "记忆花园",
-        description: "查看、确认和修正当前伙伴记住的长期信息"
-      };
-    case "library":
-      return {
-        label: "家庭资料库",
-        description: "管理当前伙伴可见的家庭素材和成长资料"
-      };
-    default:
-      return {
-        label: "陪伴对话",
-        description: "进入真实 SSE 对话、引用和会话延续"
-      };
-  }
-}
 
 function resolveTeacherId(teachers: TeacherSummary[], currentTeacherId: string | null, teacherParam: string | null) {
   if (!teachers.length) {
@@ -230,7 +201,9 @@ function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (!teacherConversations.some((conversation) => conversation.id === activeConversationId)) {
+    // 只有在当前会话ID不为空且不在列表中时，才自动选择第一个会话
+    // 这样可以避免在点击"New Chat"清空会话ID后被自动重新选中
+    if (activeConversationId && !teacherConversations.some((conversation) => conversation.id === activeConversationId)) {
       setActiveConversationId(teacherConversations[0]?.id ?? null);
     }
   }, [activeConversationId, teacherConversations]);
@@ -357,409 +330,6 @@ function WorkspaceProvider({ children }: { children: ReactNode }) {
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
-function WorkspaceChrome({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const { session, logout } = useAuth();
-  const {
-    activeConversationId,
-    beginNewConversation,
-    conversationsLoading,
-    goToWorkspace,
-    preferences,
-    savePreferences,
-    savingPreferences,
-    selectConversation,
-    selectedTeacher,
-    selectedTeacherId,
-    setSelectedTeacherId,
-    teacherConversations,
-    teacherDetail,
-    teacherDetailLoading,
-    teachers,
-    teachersLoading,
-    workspaceError,
-    workspaceKind
-  } = useWorkspace();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [companionsExpanded, setCompanionsExpanded] = useState(false);
-  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [preferenceDraft, setPreferenceDraft] = useState<PreferenceResponse>({
-    preferredLanguage: "zh-CN",
-    responseStyle: "balanced",
-    correctionMode: "gentle"
-  });
-
-  const workspaceMeta = getWorkspaceMeta(workspaceKind);
-  const hasPreferenceChanges =
-    Boolean(preferences) &&
-    (preferences?.preferredLanguage !== preferenceDraft.preferredLanguage ||
-      preferences?.responseStyle !== preferenceDraft.responseStyle ||
-      preferences?.correctionMode !== preferenceDraft.correctionMode);
-  const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
-  const selectedCompanion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
-
-  function openSettings() {
-    if (preferences) {
-      setPreferenceDraft(preferences);
-    }
-    setSettingsNotice(null);
-    setSettingsError(null);
-    setSettingsOpen(true);
-  }
-
-  async function handlePreferenceSave() {
-    try {
-      await savePreferences(preferenceDraft);
-      setSettingsNotice("陪伴偏好已保存，新的回答会按这个节奏生成。");
-      setSettingsError(null);
-    } catch (saveError) {
-      setSettingsError(saveError instanceof Error ? saveError.message : "偏好保存失败");
-      setSettingsNotice(null);
-    }
-  }
-
-  const workspaceItems = [
-    { key: "memory", label: "记忆花园", kind: "memory" as const },
-    { key: "library", label: "家庭资料库", kind: "library" as const }
-  ];
-
-  return (
-    <div className="workspace-shell">
-      {sidebarOpen ? <button className="workspace-overlay" type="button" onClick={() => setSidebarOpen(false)} /> : null}
-
-      <aside className={`workspace-sidebar${sidebarOpen ? " workspace-sidebar--open" : ""}`}>
-        <div className="workspace-brand-card">
-          <Link className="brand-lockup brand-lockup--compact" href="/">
-            <span className="brand-lockup__symbol">蛋</span>
-            <span className="brand-lockup__copy">
-              <strong>蛋壳伴学</strong>
-              <span>{workspaceMeta.label}</span>
-            </span>
-          </Link>
-          <button className="workspace-close" type="button" onClick={() => setSidebarOpen(false)}>
-            关闭
-          </button>
-        </div>
-
-        <button
-          className="duo-btn duo-btn--primary duo-btn--large"
-          type="button"
-          onClick={() => {
-            beginNewConversation();
-            setSidebarOpen(false);
-          }}
-        >
-          开启新的陪伴会话
-        </button>
-
-        <div className="workspace-section">
-          <div className="workspace-section__head">
-            <strong>当前伙伴</strong>
-            <button
-              className="workspace-section__toggle"
-              type="button"
-              onClick={() => setCompanionsExpanded((current) => !current)}
-            >
-              {companionsExpanded ? "收起" : "切换"}
-            </button>
-          </div>
-          {selectedTeacher ? (
-            <div
-              className="workspace-partner-summary"
-              style={
-                {
-                  "--teacher-accent": branding.accent,
-                  "--teacher-surface": branding.surface
-                } as CSSProperties
-              }
-            >
-              <TeacherAvatar
-                name={selectedCompanion.displayName}
-                slug={selectedTeacher.slug}
-                size="sm"
-                subtitle={selectedCompanion.subtitle}
-              />
-              <div className="workspace-partner-summary__copy">
-                <strong>{selectedCompanion.displayName}</strong>
-                <span>{selectedCompanion.subtitle}</span>
-              </div>
-            </div>
-          ) : null}
-
-          {companionsExpanded ? (
-            teachersLoading ? (
-              <div className="status-panel">正在加载伙伴列表...</div>
-            ) : (
-              <div className="workspace-teacher-list">
-                {teachers.map((teacher, index) => {
-                  const companion = getCompanionIdentity(teacher.slug);
-
-                  return (
-                  <button
-                    key={teacher.id}
-                    className={`workspace-teacher-card${selectedTeacherId === teacher.id ? " workspace-teacher-card--active" : ""}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTeacherId(teacher.id);
-                      setSidebarOpen(false);
-                    }}
-                    style={
-                      {
-                        "--teacher-accent": getTeacherBranding(teacher, index).accent,
-                        "--teacher-surface": getTeacherBranding(teacher, index).surface
-                      } as CSSProperties
-                    }
-                  >
-                    <TeacherAvatar name={companion.displayName} slug={teacher.slug} size="sm" subtitle={companion.subtitle} />
-                    <div className="workspace-teacher-card__copy">
-                      <strong>{companion.displayName}</strong>
-                      <span>{companion.subtitle}</span>
-                    </div>
-                  </button>
-                  );
-                })}
-              </div>
-            )
-          ) : null}
-        </div>
-
-        <div className="workspace-section workspace-section--grow">
-          <div className="workspace-section__head">
-            <strong>历史会话</strong>
-            <span>{teacherConversations.length} 个</span>
-          </div>
-          {conversationsLoading ? (
-            <div className="status-panel">正在同步会话...</div>
-          ) : teacherConversations.length ? (
-            <div className="workspace-conversation-list">
-              {teacherConversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  className={`workspace-conversation-card${
-                    activeConversationId === conversation.id ? " workspace-conversation-card--active" : ""
-                  }`}
-                  type="button"
-                  onClick={() => {
-                    selectConversation(conversation.id);
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <strong>{conversation.title}</strong>
-                  <span>{new Date(conversation.updatedAt).toLocaleString("zh-CN")}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="status-panel">当前伙伴下还没有历史会话，直接开始一轮新的陪伴即可。</div>
-          )}
-        </div>
-
-        <div className="workspace-account-card">
-          <div>
-            <strong>{session?.user.displayName}</strong>
-            <span>{session?.user.role === "ADMIN" ? "运营账号" : "家庭账号"}</span>
-          </div>
-          <div className="workspace-account-card__actions">
-            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(true)}>
-              工具箱
-            </button>
-            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={openSettings}>
-              偏好设置
-            </button>
-            <button
-              className="duo-btn duo-btn--ghost py-2.5 text-sm"
-              type="button"
-              onClick={() => {
-                logout();
-                router.replace("/login");
-              }}
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      <div className="workspace-frame">
-        <header
-          className="workspace-topbar"
-          style={
-            {
-              "--teacher-accent": branding.accent,
-              "--teacher-surface": branding.surface
-            } as CSSProperties
-          }
-        >
-          <button className="workspace-mobile-toggle" type="button" onClick={() => setSidebarOpen(true)}>
-            菜单
-          </button>
-          <div className="workspace-topbar__teacher">
-            {selectedTeacher ? (
-              <TeacherAvatar
-                name={selectedCompanion.displayName}
-                slug={selectedTeacher.slug}
-                size="sm"
-                subtitle={selectedCompanion.subtitle}
-              />
-            ) : null}
-            <div className="workspace-topbar__copy">
-              <span>{workspaceMeta.label}</span>
-              <strong>{selectedTeacher ? selectedCompanion.displayName : "蛋壳伴学"}</strong>
-            </div>
-          </div>
-          <div className="workspace-topbar__actions">
-            <span className="workspace-chip workspace-chip--soft">{workspaceMeta.description}</span>
-            {teacherDetailLoading ? <span className="workspace-chip">同步伙伴资料中</span> : null}
-            {teacherDetail?.activeRule?.title ? <span className="workspace-chip">{teacherDetail.activeRule.title}</span> : null}
-            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(true)}>
-              工具箱
-            </button>
-            <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={openSettings}>
-              偏好设置
-            </button>
-          </div>
-        </header>
-
-        {workspaceError ? (
-          <div className="workspace-banner">
-            <div className="status-panel status-panel--error">
-              <strong>工作台数据同步异常</strong>
-              <p>{workspaceError}</p>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="workspace-surface">{children}</div>
-      </div>
-
-      {settingsOpen ? (
-        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
-          <section className="modal-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-panel__header">
-              <div>
-                <span className="eyebrow">Companion Preferences</span>
-                <h2>调整家庭陪伴偏好</h2>
-              </div>
-              <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setSettingsOpen(false)}>
-                关闭
-              </button>
-            </div>
-
-            <div className="preference-grid">
-              <label className="form-field">
-                <span>回答语言</span>
-                <select
-                  value={preferenceDraft.preferredLanguage}
-                  onChange={(event) =>
-                    setPreferenceDraft((current) => ({ ...current, preferredLanguage: event.target.value }))
-                  }
-                >
-                  <option value="zh-CN">中文优先</option>
-                  <option value="en-US">英文优先</option>
-                  <option value="bilingual">中英双语</option>
-                </select>
-              </label>
-
-              <label className="form-field">
-                <span>回答风格</span>
-                <select
-                  value={preferenceDraft.responseStyle}
-                  onChange={(event) =>
-                    setPreferenceDraft((current) => ({ ...current, responseStyle: event.target.value }))
-                  }
-                >
-                  <option value="balanced">平衡讲解</option>
-                  <option value="concise">先给结论</option>
-                  <option value="coach">追问引导</option>
-                </select>
-              </label>
-
-              <label className="form-field">
-                <span>纠错力度</span>
-                <select
-                  value={preferenceDraft.correctionMode}
-                  onChange={(event) =>
-                    setPreferenceDraft((current) => ({ ...current, correctionMode: event.target.value }))
-                  }
-                >
-                  <option value="gentle">温柔提醒</option>
-                  <option value="balanced">平衡纠错</option>
-                  <option value="strict">严格指出</option>
-                </select>
-              </label>
-            </div>
-
-            {settingsNotice ? <div className="status-panel status-panel--success">{settingsNotice}</div> : null}
-            {settingsError ? <div className="status-panel status-panel--error">{settingsError}</div> : null}
-
-            <div className="modal-panel__actions">
-              <button
-                className="duo-btn duo-btn--ghost py-2.5 text-sm"
-                disabled={!preferences}
-                type="button"
-                onClick={() => {
-                  if (preferences) {
-                    setPreferenceDraft(preferences);
-                  }
-                  setSettingsNotice(null);
-                  setSettingsError(null);
-                }}
-              >
-                重置
-              </button>
-              <button
-                className="duo-btn duo-btn--primary"
-                disabled={!preferences || !hasPreferenceChanges || savingPreferences}
-                type="button"
-                onClick={() => void handlePreferenceSave()}
-              >
-                {savingPreferences ? "保存中..." : "保存偏好"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {toolsOpen ? (
-        <div className="modal-backdrop" onClick={() => setToolsOpen(false)}>
-          <section className="modal-panel modal-panel--compact" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-panel__header">
-              <div>
-                <span className="eyebrow">Companion Tools</span>
-                <h2>辅助能力</h2>
-              </div>
-              <button className="duo-btn duo-btn--ghost py-2.5 text-sm" type="button" onClick={() => setToolsOpen(false)}>
-                关闭
-              </button>
-            </div>
-
-            <div className="workspace-tools-grid">
-              {workspaceItems.map((item) => (
-                <button
-                  key={item.key}
-                  className={`workspace-utility-link${workspaceKind === item.kind ? " workspace-utility-link--active" : ""}`}
-                  type="button"
-                  onClick={() => {
-                    goToWorkspace(item.kind);
-                    setToolsOpen(false);
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <strong>{item.label}</strong>
-                  <span>{getWorkspaceMeta(item.kind).description}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -788,7 +358,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceProvider>
-      <WorkspaceChrome>{children}</WorkspaceChrome>
+      {children}
     </WorkspaceProvider>
   );
 }

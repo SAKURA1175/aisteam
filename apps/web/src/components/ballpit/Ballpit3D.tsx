@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Vector3,
@@ -36,9 +36,9 @@ class ThreeApp {
   maxPixelRatio?: number;
   minPixelRatio?: number;
   scene: Scene;
-  renderer: WebGLRenderer;
+  renderer!: WebGLRenderer;
   size = { width: 0, height: 0, wWidth: 0, wHeight: 0, ratio: 0, pixelRatio: 0 };
-  render: () => void;
+  render!: () => void;
   onBeforeRender = (_time: { elapsed: number; delta: number }) => { void _time; };
   onAfterRender = (_time: { elapsed: number; delta: number }) => { void _time; };
   onAfterResize = (_size: any) => { void _size; };
@@ -69,16 +69,27 @@ class ThreeApp {
     const rendererOptions = {
       canvas: this.canvas,
       powerPreference: 'high-performance' as const,
+      antialias: false,
+      alpha: true,
       ...(this.config.rendererOptions ?? {})
     };
-    this.renderer = new WebGLRenderer(rendererOptions);
-    this.renderer.outputColorSpace = SRGBColorSpace;
-    this.render = this.defaultRender.bind(this);
     
+    try {
+      this.renderer = new WebGLRenderer(rendererOptions);
+      this.renderer.outputColorSpace = SRGBColorSpace;
+    } catch (error) {
+      console.warn('WebGL initialization failed, BallPit disabled:', error);
+      this.isDisposed = true;
+      return;
+    }
+    
+    this.render = this.defaultRender.bind(this);
     this.setupObservers();
   }
 
   private setupObservers() {
+    if (this.isDisposed) return;
+    
     if (!(this.config.size instanceof Object)) {
       window.addEventListener('resize', this.handleResize.bind(this));
       if (this.config.size === 'parent' && this.canvas.parentNode) {
@@ -838,6 +849,7 @@ export interface BallPitProps {
 export function BallPit({ className = '', followCursor = true, count = 250, gravity = 0.8, friction = 0.9975, wallBounce = 0.95, colors, ...props }: BallPitProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const instanceRef = useRef<any>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -846,15 +858,29 @@ export function BallPit({ className = '', followCursor = true, count = 250, grav
     const config: any = { followCursor, count, gravity, friction, wallBounce, ...props };
     if (colors) config.colors = colors;
 
-    instanceRef.current = createBallpit(canvas, config);
+    try {
+      instanceRef.current = createBallpit(canvas, config);
+      if (instanceRef.current?.three?.isDisposed) {
+        setFailed(true);
+      }
+    } catch (error) {
+      console.warn('BallPit creation failed:', error);
+      setFailed(true);
+    }
 
     return () => {
       if (instanceRef.current) {
-        instanceRef.current.dispose();
+        try {
+          instanceRef.current.dispose();
+        } catch {
+          // Ignore disposal errors
+        }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (failed) return null;
 
   return <canvas className={className} ref={canvasRef} style={{ width: '100%', height: '100%' }} />;
 }

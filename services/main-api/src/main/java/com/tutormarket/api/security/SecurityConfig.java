@@ -40,7 +40,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/wechat-login", "/api/v1/auth/wechat/exchange").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/wechat/qr-config").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/teachers", "/api/v1/teachers/*").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

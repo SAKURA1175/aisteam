@@ -33,16 +33,18 @@ public class JwtTokenService {
 
     public String issueToken(UserPrincipal principal) {
         var now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .issuer(properties.issuer())
                 .subject(principal.userId().toString())
                 .claim("tenant_id", principal.tenantId().toString())
                 .claim("role", principal.role().name())
-                .claim("email", principal.email())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(properties.expirationMinutes(), ChronoUnit.MINUTES)))
-                .signWith(secretKey)
-                .compact();
+                .signWith(secretKey);
+        if (principal.email() != null) {
+            builder.claim("email", principal.email());
+        }
+        return builder.compact();
     }
 
     public UUID extractUserId(String token) {

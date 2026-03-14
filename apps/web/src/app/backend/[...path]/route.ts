@@ -31,9 +31,19 @@ function buildUpstreamUrl(request: NextRequest, path: string[]) {
 
 function buildUpstreamHeaders(request: NextRequest) {
   const headers = new Headers();
+  const allowList = new Set([
+    "accept",
+    "accept-language",
+    "authorization",
+    "content-type",
+    "cookie",
+    "user-agent",
+    "x-request-id"
+  ]);
 
   for (const [key, value] of request.headers.entries()) {
-    if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+    const normalizedKey = key.toLowerCase();
+    if (!HOP_BY_HOP_HEADERS.has(normalizedKey) && allowList.has(normalizedKey)) {
       headers.set(key, value);
     }
   }

@@ -7,6 +7,7 @@ type CompanionIdentity = {
   quote: string;
   hoverQuote: string;
   animationPath: string;
+  imagePath: string;
   glyph: string;
   icon: LucideIcon;
 };
@@ -19,6 +20,7 @@ const companionIdentityBySlug: Record<string, CompanionIdentity> = {
     quote: "今天一起蹦蹦跳跳学新字吗？",
     hoverQuote: "我是跳跳，今天也要开心学认字呀！",
     animationPath: "/lottie/animal-rabbit.json",
+    imagePath: "/images/mascots/rabbit-icon.svg",
     glyph: "兔",
     icon: Heart
   },
@@ -29,6 +31,7 @@ const companionIdentityBySlug: Record<string, CompanionIdentity> = {
     quote: "准备好和我一起啄开新世界了吗？",
     hoverQuote: "我是啾啾，今天带你去发现好多新东西。",
     animationPath: "/lottie/animal-chick.json",
+    imagePath: "/images/mascots/chick-icon.svg",
     glyph: "鸡",
     icon: Smile
   },
@@ -39,6 +42,7 @@ const companionIdentityBySlug: Record<string, CompanionIdentity> = {
     quote: "咪呜，今天一起读个好听的故事吧。",
     hoverQuote: "我是咪咪，已经帮你把今天的绘本翻开啦。",
     animationPath: "/lottie/animal-cat.json",
+    imagePath: "/images/mascots/cat-icon.svg",
     glyph: "猫",
     icon: BookOpen
   }
@@ -60,6 +64,7 @@ export function getCompanionIdentity(
     quote: "今天想聊点什么呀？",
     hoverQuote: "我已经准备好陪你开始今天的冒险了。",
     animationPath: "/lottie/animal-chick.json",
+    imagePath: "/images/mascots/chick-icon.svg",
     glyph: "蛋",
     icon: Heart
   };

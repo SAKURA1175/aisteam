@@ -13,10 +13,19 @@ public record AppProperties(
         @NotNull PlatformProperties platform,
         @NotNull JwtProperties jwt,
         @NotNull AiProperties ai,
-        @NotNull StorageProperties storage
+        @NotNull StorageProperties storage,
+        WeChatProperties wechat
 ) {
 
     public record PlatformProperties(@NotNull UUID tenantId) {
+    }
+
+    public record WeChatProperties(
+            String openAppId,
+            String openAppSecret,
+            String redirectUri,
+            long stateTtlSeconds
+    ) {
     }
 
     public record JwtProperties(

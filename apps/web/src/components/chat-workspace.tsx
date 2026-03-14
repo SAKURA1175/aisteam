@@ -1,14 +1,14 @@
 "use client";
 
-import type { ChatMessageItem, CitationItem, ConversationSummary } from "@tutormarket/types";
+import type { ChatMessageItem, CitationItem, ConversationSummary, PreferenceResponse } from "@tutormarket/types";
 import Image from "next/image";
+import { BookOpenText, ChevronDown, ImageIcon, Menu, Mic, Paperclip, SendHorizontal, Settings2, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createConversation, getMessages, streamConversationMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { getCompanionIdentity } from "../lib/companion-identity";
-import { getTeacherBranding } from "../lib/teacher-branding";
 import { useWorkspace } from "./workspace-shell";
-import { LottieMascot } from "./mascot/LottieMascot";
 
 const citationSourceLabel = {
   teacher_knowledge: "伙伴知识库",
@@ -43,7 +43,27 @@ function getDailyTip(displayName: string) {
   return tips[hashString(`${todayKey}:${displayName}`) % tips.length] ?? tips[0];
 }
 
+function formatMessageTimestamp(dateString: string) {
+  return new Date(dateString).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatConversationTimestamp(dateString: string) {
+  return new Date(dateString).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+}
+
+function CuteCompanionIcon({ src, alt, glyph, className = "" }: { src: string; alt: string; glyph: string; className?: string }) {
+  return (
+    <div className={`cute-companion-icon ${className}`.trim()}>
+      <Image alt={alt} className="cute-companion-icon__image" height={40} src={src} width={40} />
+      <span className="cute-companion-icon__fallback" aria-hidden="true">
+        {glyph}
+      </span>
+    </div>
+  );
+}
+
 export function ChatWorkspace() {
+  const router = useRouter();
   const { session, token } = useAuth();
   const {
     activeConversationId,
@@ -52,10 +72,18 @@ export function ChatWorkspace() {
     preferences,
     refreshConversations,
     registerConversation,
+    savePreferences,
+    savingPreferences,
+    selectConversation,
     selectedTeacher,
+    selectedTeacherId,
+    setSelectedTeacherId,
     teacherConversations,
     teacherDetail,
-    teacherDetailLoading
+    teacherDetailLoading,
+    teachers,
+    teachersLoading,
+    workspaceError
   } = useWorkspace();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [draft, setDraft] = useState("");
@@ -63,10 +91,44 @@ export function ChatWorkspace() {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
-  const chatStreamRef = useRef<HTMLDivElement | null>(null);
-  const branding = getTeacherBranding(selectedTeacher ?? teacherDetail);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [companionsMenuOpen, setCompanionsMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [preferenceDraft, setPreferenceDraft] = useState<PreferenceResponse>({
+    preferredLanguage: "zh-CN",
+    responseStyle: "balanced",
+    correctionMode: "gentle"
+  });
+  const [isDesktop, setIsDesktop] = useState(false);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const companion = getCompanionIdentity(selectedTeacher?.slug ?? teacherDetail?.slug);
   const dailyTip = useMemo(() => getDailyTip(companion.displayName), [companion.displayName]);
+  const sidebarVisible = isDesktop || sidebarOpen;
+  const headerRuleTitle = teacherDetail?.activeRule?.title ?? "蛋壳伴学基础规则 v1";
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (isDesktop) {
+      setSidebarOpen(false);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (preferences) {
+      setPreferenceDraft(preferences);
+    }
+  }, [preferences]);
 
   useEffect(() => {
     if (!token || !activeConversationId) {
@@ -89,11 +151,11 @@ export function ChatWorkspace() {
   }, [activeConversationId, token]);
 
   useEffect(() => {
-    if (!chatStreamRef.current) {
+    if (!messagesViewportRef.current) {
       return;
     }
 
-    chatStreamRef.current.scrollTop = chatStreamRef.current.scrollHeight;
+    messagesViewportRef.current.scrollTop = messagesViewportRef.current.scrollHeight;
   }, [loadingMessages, messages, streaming]);
 
   const starterPrompts = useMemo<StarterPrompt[]>(() => {
@@ -130,7 +192,7 @@ export function ChatWorkspace() {
       {
         label: "共读热身",
         title: "轻松开场",
-        hint: branding.promptHint,
+        hint: companion.badge,
         prompt: `请以 ${companion.displayName} 的风格，先根据孩子现在的情况安排一个轻松开场。`
       },
       {
@@ -152,7 +214,13 @@ export function ChatWorkspace() {
         prompt: `继续孩子和 ${companion.displayName} 上次的节奏，先复习再推进一点新内容。`
       }
     ];
-  }, [branding.promptHint, companion.displayName, companion.subtitle, selectedTeacher]);
+  }, [companion.badge, companion.displayName, companion.subtitle, selectedTeacher]);
+
+  const hasPreferenceChanges =
+    Boolean(preferences) &&
+    (preferences?.preferredLanguage !== preferenceDraft.preferredLanguage ||
+      preferences?.responseStyle !== preferenceDraft.responseStyle ||
+      preferences?.correctionMode !== preferenceDraft.correctionMode);
 
   async function handleSend() {
     if (!token || !session || !selectedTeacher || !draft.trim() || streaming) {
@@ -186,7 +254,7 @@ export function ChatWorkspace() {
 
     try {
       if (!conversationId) {
-        const createdConversation: ConversationSummary = await createConversation(token, selectedTeacher.id, companion.displayName);
+        const createdConversation: ConversationSummary = await createConversation(token, selectedTeacher.id);
         registerConversation(createdConversation);
         conversationId = createdConversation.id;
       }
@@ -248,6 +316,17 @@ export function ChatWorkspace() {
     }
   }
 
+  async function handlePreferenceSave() {
+    try {
+      await savePreferences(preferenceDraft);
+      setSettingsNotice("陪伴偏好已保存，新的回答会按这个节奏生成。");
+      setSettingsError(null);
+    } catch (saveError) {
+      setSettingsError(saveError instanceof Error ? saveError.message : "偏好保存失败");
+      setSettingsNotice(null);
+    }
+  }
+
   function renderCitation(citation: CitationItem, index: number) {
     return (
       <div key={`${citation.fileId}-${citation.chunkRef}-${index}`} className="citation-card">
@@ -280,148 +359,400 @@ export function ChatWorkspace() {
 
   return (
     <section className="workspace-page">
-      <div className="chat-context-bar">
-        <div className="chat-context-bar__left">
-          <div className="chat-context-bar__mascot" aria-hidden="true">
-            <LottieMascot
-              className="chat-context-bar__mascot-animation"
-              fallback={companion.glyph}
-              src={companion.animationPath}
-            />
-          </div>
-          <div className="chat-context-bar__copy">
-            <span className="chat-context-bar__eyebrow">陪伴对话</span>
-            <strong>{companion.displayName}</strong>
-            <span>{companion.subtitle}</span>
-            <span className="chat-context-bar__tip">今日小提示：{dailyTip}</span>
-          </div>
-        </div>
-        <div className="chat-context-bar__meta">
-          <span className="workspace-chip">真实 SSE</span>
-          <span className="workspace-chip workspace-chip--soft">
-            {conversationsLoading ? "同步会话中" : `${teacherConversations.length} 个历史会话`}
-          </span>
-          {teacherDetailLoading ? <span className="workspace-chip workspace-chip--soft">同步伙伴资料中</span> : null}
-        </div>
-      </div>
-
-      {error ? (
-        <div className="status-panel status-panel--error">
-          <strong>当前对话链路异常</strong>
-          <p>{error}</p>
-        </div>
+      {!isDesktop ? (
+        <button
+          aria-label="关闭侧边栏"
+          className={`gemini-overlay${sidebarOpen ? " gemini-overlay--visible" : ""}`}
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+        />
       ) : null}
 
-      <div className="chat-layout">
-        <div ref={chatStreamRef} className="chat-thread">
-          {loadingMessages ? (
-            <div className="status-panel">正在加载会话消息...</div>
-          ) : messages.length ? (
-            messages.map((message, index) => {
-              const isAssistant = message.role === "ASSISTANT";
-              const isStreamingAssistant = streaming && isAssistant && index === messages.length - 1;
-
-              return (
-                <article key={message.id} className={`chat-message chat-message--${isAssistant ? "assistant" : "user"}`}>
-                <div className="chat-message__meta">
-                  <span>{isAssistant ? companion.displayName : session?.user.displayName ?? "你"}</span>
-                  <span>{new Date(message.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-                <div className="chat-message__content">
-                  {isStreamingAssistant ? (
-                    <div className="chat-message__status">
-                      <span>{companion.displayName} 正在想</span>
-                      <span className="typing-dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </span>
-                    </div>
-                  ) : null}
-                  <p>{message.content}</p>
-                </div>
-                {message.citations.length ? (
-                  <div className="citation-stack">
-                    <button
-                      className={`chat-sources-toggle${expandedCitations[message.id] ? " chat-sources-toggle--open" : ""}`}
-                      type="button"
-                      onClick={() => toggleCitations(message.id)}
-                    >
-                      {expandedCitations[message.id] ? "收起依据" : `查看依据 (${message.citations.length})`}
-                    </button>
-                    {expandedCitations[message.id] ? (
-                      <div className="chat-sources-panel">{message.citations.map(renderCitation)}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-              );
-            })
-          ) : (
-            <div className="empty-stage">
-              <div className="empty-stage__copy">
-                <span className="empty-stage__eyebrow">今天想从哪里开始？</span>
-                <strong>{branding.welcomeTitle}</strong>
-                <p>直接和 {companion.displayName} 开始一轮轻松对话，系统会自动带入家庭偏好和后续引用来源。</p>
-              </div>
-              <div className="starter-grid">
-                {starterPrompts.map((prompt) => (
-                  <button key={prompt.prompt} className="starter-card" type="button" onClick={() => setDraft(prompt.prompt)}>
-                    <Image
-                      className="starter-card__mascot"
-                      src="/images/mascots/egg-chick.svg"
-                      width={26}
-                      height={26}
-                      alt=""
-                      aria-hidden="true"
-                    />
-                    <span className="starter-card__label">{prompt.label}</span>
-                    <strong>{prompt.title}</strong>
-                    <span className="starter-card__hint">{prompt.hint}</span>
-                  </button>
-                ))}
-              </div>
+      <aside className={`gemini-sidebar${sidebarVisible ? " gemini-sidebar--open" : ""}`}>
+        <div className="gemini-sidebar__header">
+          <div className="gemini-sidebar__brand">
+            <div className="gemini-sidebar__brand-badge">蛋</div>
+            <div>
+              <strong>蛋壳伴学</strong>
+              <span>{companion.displayName} · {companion.subtitle}</span>
             </div>
-          )}
+          </div>
+          <button className="gemini-sidebar__new-chat" type="button" onClick={beginNewConversation}>
+            <Sparkles size={16} strokeWidth={2.2} />
+            <span>New Chat</span>
+          </button>
         </div>
 
-        <div className="chat-composer-dock">
-          <div className="chat-composer-dock__meta">
-            <strong>{streaming ? "正在生成回答..." : `发送给 ${companion.displayName}`}</strong>
-            <span>
-              当前偏好：{preferences?.preferredLanguage ?? "zh-CN"} / {preferences?.responseStyle ?? "balanced"} /{" "}
-              {preferences?.correctionMode ?? "gentle"}
-            </span>
+        <div className="gemini-sidebar__content">
+          <div className="gemini-sidebar__companion">
+            <div className="gemini-sidebar__companion-avatar">
+              <CuteCompanionIcon
+                alt={`${companion.displayName} 图标`}
+                className="gemini-sidebar__companion-icon"
+                glyph={companion.glyph}
+                src={companion.imagePath}
+              />
+            </div>
+            <div>
+              <strong>{companion.displayName}</strong>
+              <span>{companion.subtitle}</span>
+            </div>
           </div>
-          <div className="composer-card__heading">
-            <span className="workspace-chip workspace-chip--soft">Cmd/Ctrl + Enter 发送</span>
+
+          <div className="gemini-sidebar__section-title">Recent History</div>
+          {conversationsLoading ? (
+            <div className="status-panel">正在同步会话...</div>
+          ) : teacherConversations.length ? (
+            teacherConversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                className={`gemini-history-item${activeConversationId === conversation.id ? " gemini-history-item--active" : ""}`}
+                type="button"
+                onClick={() => {
+                  selectConversation(conversation.id);
+                  setSidebarOpen(false);
+                }}
+              >
+                <strong>{conversation.title}</strong>
+                <span>{formatConversationTimestamp(conversation.updatedAt)}</span>
+              </button>
+            ))
+          ) : (
+            <div className="status-panel">当前伙伴下还没有历史会话，先发起第一轮陪伴吧。</div>
+          )}
+
+          <div className="gemini-sidebar__section-title">Tools</div>
+          <button
+            className={`gemini-history-item gemini-history-item--utility${companionsMenuOpen ? " gemini-history-item--utility-open" : ""}`}
+            type="button"
+            onClick={() => setCompanionsMenuOpen((current) => !current)}
+          >
+            <Sparkles size={18} strokeWidth={2.1} />
+            <span>切换小伙伴</span>
+            <ChevronDown className={`gemini-history-item__chevron${companionsMenuOpen ? " gemini-history-item__chevron--open" : ""}`} size={16} strokeWidth={2.2} />
+          </button>
+          {companionsMenuOpen ? (
+            teachersLoading ? (
+              <div className="status-panel">正在加载伙伴列表...</div>
+            ) : (
+              <div className="gemini-companion-switcher">
+                {teachers.map((teacher) => {
+                  const optionCompanion = getCompanionIdentity(teacher.slug);
+
+                  return (
+                    <button
+                      key={teacher.id}
+                      className={`gemini-companion-option${selectedTeacherId === teacher.id ? " gemini-companion-option--active" : ""}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTeacherId(teacher.id);
+                        setCompanionsMenuOpen(false);
+                        setSidebarOpen(false);
+                      }}
+                    >
+                      <div className="gemini-companion-option__avatar">
+                        <CuteCompanionIcon
+                          alt={`${optionCompanion.displayName} 图标`}
+                          className="gemini-companion-option__icon"
+                          glyph={optionCompanion.glyph}
+                          src={optionCompanion.imagePath}
+                        />
+                      </div>
+                      <div className="gemini-companion-option__copy">
+                        <strong>{optionCompanion.displayName}</strong>
+                        <span>{optionCompanion.subtitle}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : null}
+          <button className="gemini-history-item gemini-history-item--utility" type="button" onClick={() => router.push("/chat/library")}>
+            <BookOpenText size={18} strokeWidth={2.1} />
+            <span>知识库</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="gemini-chat-container" style={isDesktop ? { marginLeft: 280 } : undefined}>
+        <header className="gemini-chat-header">
+          {!isDesktop ? (
+            <button className="gemini-menu-btn" type="button" onClick={() => setSidebarOpen(true)}>
+              <Menu size={22} strokeWidth={2.2} />
+            </button>
+          ) : null}
+
+          <div className="gemini-chat-header__companion">
+            <div className="gemini-chat-header__avatar">
+              <CuteCompanionIcon
+                alt={`${companion.displayName} 图标`}
+                className="gemini-chat-header__avatar-icon"
+                glyph={companion.glyph}
+                src={companion.imagePath}
+              />
+            </div>
+            <div className="gemini-chat-header__copy">
+              <strong>{companion.displayName}</strong>
+              <span>{companion.subtitle}</span>
+            </div>
           </div>
-          <textarea
-            className="chat-input"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder="输入想和伙伴继续的话题，例如：请结合孩子上次的记忆，先做一个 10 分钟的轻练习。"
-            rows={5}
-          />
-          <div className="composer-actions">
-            <button className="duo-btn duo-btn--ghost py-2 text-sm" type="button" onClick={beginNewConversation}>
-              新建会话
+
+          <div className="gemini-chat-header__actions">
+            <div className="gemini-status-indicator">
+              <span className="gemini-status-dot" />
+              <span>{teacherDetailLoading ? "同步伙伴资料中" : headerRuleTitle}</span>
+            </div>
+            <button
+              className="gemini-menu-btn"
+              type="button"
+              onClick={() => {
+                if (preferences) {
+                  setPreferenceDraft(preferences);
+                }
+                setSettingsNotice(null);
+                setSettingsError(null);
+                setSettingsOpen(true);
+              }}
+            >
+              <Settings2 size={20} strokeWidth={2.1} />
             </button>
-            <button className="duo-btn duo-btn--ghost py-2 text-sm" type="button" onClick={() => setDraft(starterPrompts[0]?.prompt ?? "")}>
-              填入示例
-            </button>
-            <button className="duo-btn duo-btn--primary px-8 py-3 text-base" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>
-              {streaming ? "发送中..." : "发送消息"}
-            </button>
+          </div>
+        </header>
+
+        <div ref={messagesViewportRef} className="gemini-chat-messages">
+          <div className="gemini-messages-inner">
+            {workspaceError ? (
+              <div className="status-panel status-panel--error">
+                <strong>工作台数据同步异常</strong>
+                <p>{workspaceError}</p>
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="status-panel status-panel--error">
+                <strong>当前对话链路异常</strong>
+                <p>{error}</p>
+              </div>
+            ) : null}
+
+            {loadingMessages ? (
+              <div className="status-panel">正在加载会话消息...</div>
+            ) : messages.length ? (
+              messages.map((message, index) => {
+                const isAssistant = message.role === "ASSISTANT";
+                const isStreamingAssistant = streaming && isAssistant && index === messages.length - 1;
+
+                return (
+                  <article key={message.id} className={`gemini-message${!isAssistant ? " gemini-message--user" : ""}`}>
+                    <div className="gemini-message__avatar">
+                      {isAssistant ? (
+                        <CuteCompanionIcon
+                          alt={`${companion.displayName} 图标`}
+                          className="gemini-message__avatar-icon"
+                          glyph={companion.glyph}
+                          src={companion.imagePath}
+                        />
+                      ) : (
+                        <div className="gemini-message__user-avatar">{session?.user.displayName?.slice(0, 1) ?? "你"}</div>
+                      )}
+                    </div>
+
+                    <div className="gemini-message__content">
+                      <div className="gemini-message__bubble">
+                        {isStreamingAssistant ? (
+                          <div className="chat-message__status">
+                            <span>{companion.displayName} 正在想</span>
+                            <span className="typing-dots" aria-hidden="true">
+                              <span />
+                              <span />
+                              <span />
+                            </span>
+                          </div>
+                        ) : null}
+                        <p>{message.content || (isStreamingAssistant ? "正在组织回答..." : "")}</p>
+                      </div>
+
+                      <div className="gemini-message__meta">
+                        <span>{isAssistant ? companion.displayName : "你"}</span>
+                        <span>{formatMessageTimestamp(message.createdAt)}</span>
+                      </div>
+
+                      {isAssistant && message.citations.length ? (
+                        <>
+                          <div className="gemini-message__toolbar">
+                            <button
+                              className="gemini-message__tool-btn"
+                              type="button"
+                              onClick={() => toggleCitations(message.id)}
+                            >
+                              {expandedCitations[message.id] ? "收起依据" : `查看依据 (${message.citations.length})`}
+                            </button>
+                          </div>
+                          {expandedCitations[message.id] ? (
+                            <div className="gemini-message__citations">
+                              {message.citations.map(renderCitation)}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="empty-stage">
+                <div className="empty-stage__mascot">
+                  <CuteCompanionIcon
+                    alt={`${companion.displayName} 图标`}
+                    className="empty-stage__mascot-icon"
+                    glyph={companion.glyph}
+                    src={companion.imagePath}
+                  />
+                </div>
+                <div className="empty-stage__copy">
+                  <span className="empty-stage__eyebrow">今天想从哪里开始？</span>
+                  <strong>{companion.displayName} 已经准备好啦</strong>
+                  <p>直接和 {companion.displayName} 开始一轮轻松对话，系统会自动带入家庭偏好和后续引用来源。</p>
+                  <p className="empty-stage__tip">今日小提示：{dailyTip}</p>
+                </div>
+
+                <div className="starter-grid">
+                  {starterPrompts.map((prompt) => (
+                    <button key={prompt.prompt} className="starter-card" type="button" onClick={() => setDraft(prompt.prompt)}>
+                      <span className="starter-card__label">{prompt.label}</span>
+                      <strong>{prompt.title}</strong>
+                      <span className="starter-card__hint">{prompt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="gemini-input-container" style={isDesktop ? { left: 280 } : undefined}>
+          <div className="gemini-input-wrapper">
+            <div className="gemini-input-box">
+              <button className="gemini-input__icon-btn" disabled={true} type="button" aria-label="上传附件即将支持">
+                <Paperclip size={20} strokeWidth={2.1} />
+              </button>
+              <button className="gemini-input__icon-btn" disabled={true} type="button" aria-label="发送图片即将支持">
+                <ImageIcon size={20} strokeWidth={2.1} />
+              </button>
+              <button className="gemini-input__icon-btn" disabled={true} type="button" aria-label="语音输入即将支持">
+                <Mic size={20} strokeWidth={2.1} />
+              </button>
+
+              <textarea
+                className="gemini-input__field"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                    event.preventDefault();
+                    void handleSend();
+                  }
+                }}
+                placeholder="Ask Eggshell anything..."
+                rows={1}
+              />
+
+              <button className="gemini-send-btn" disabled={!draft.trim() || streaming} type="button" onClick={() => void handleSend()}>
+                <SendHorizontal size={20} strokeWidth={2.4} />
+              </button>
+            </div>
+            <p className="gemini-input-caption">Eggshell Learning • Nurturing growth one step at a time</p>
           </div>
         </div>
       </div>
+
+      {settingsOpen ? (
+        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <section className="modal-panel modal-panel--chat-settings" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-panel__header">
+              <div className="modal-panel__title-block">
+                <h2 className="modal-panel__title">选择伙伴回答偏好</h2>
+              </div>
+              <button className="modal-text-button" type="button" onClick={() => setSettingsOpen(false)}>
+                关闭
+              </button>
+            </div>
+
+            <div className="preference-grid">
+              <label className="form-field">
+                <span>回答语言</span>
+                <select
+                  value={preferenceDraft.preferredLanguage}
+                  onChange={(event) =>
+                    setPreferenceDraft((current) => ({ ...current, preferredLanguage: event.target.value }))
+                  }
+                >
+                  <option value="zh-CN">中文优先</option>
+                  <option value="en-US">英文优先</option>
+                  <option value="bilingual">中英双语</option>
+                </select>
+              </label>
+
+              <label className="form-field">
+                <span>回答风格</span>
+                <select
+                  value={preferenceDraft.responseStyle}
+                  onChange={(event) =>
+                    setPreferenceDraft((current) => ({ ...current, responseStyle: event.target.value }))
+                  }
+                >
+                  <option value="balanced">平衡讲解</option>
+                  <option value="concise">先给结论</option>
+                  <option value="coach">追问引导</option>
+                </select>
+              </label>
+
+              <label className="form-field">
+                <span>纠错力度</span>
+                <select
+                  value={preferenceDraft.correctionMode}
+                  onChange={(event) =>
+                    setPreferenceDraft((current) => ({ ...current, correctionMode: event.target.value }))
+                  }
+                >
+                  <option value="gentle">温柔提醒</option>
+                  <option value="balanced">平衡纠错</option>
+                  <option value="strict">严格指出</option>
+                </select>
+              </label>
+            </div>
+
+            {settingsNotice ? <div className="status-panel status-panel--success">{settingsNotice}</div> : null}
+            {settingsError ? <div className="status-panel status-panel--error">{settingsError}</div> : null}
+
+            <div className="modal-panel__actions">
+              <button
+                className="modal-action-button modal-action-button--ghost"
+                disabled={!preferences}
+                type="button"
+                onClick={() => {
+                  if (preferences) {
+                    setPreferenceDraft(preferences);
+                  }
+                  setSettingsNotice(null);
+                  setSettingsError(null);
+                }}
+              >
+                重置
+              </button>
+              <button
+                className="modal-action-button modal-action-button--primary"
+                disabled={!preferences || !hasPreferenceChanges || savingPreferences}
+                type="button"
+                onClick={() => void handlePreferenceSave()}
+              >
+                {savingPreferences ? "保存中..." : "保存偏好"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

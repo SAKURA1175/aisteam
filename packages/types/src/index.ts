@@ -41,7 +41,7 @@ export interface UpdateMemoryRequest {
 
 export interface AuthUserProfile {
   id: string;
-  email: string;
+  email: string | null;
   displayName: string;
   role: UserRole;
 }
@@ -49,6 +49,22 @@ export interface AuthUserProfile {
 export interface AuthResponse {
   accessToken: string;
   user: AuthUserProfile;
+}
+
+export interface WeChatQrConfigResponse {
+  appId: string;
+  redirectUri: string;
+  scope: string;
+  state: string;
+}
+
+export interface WeChatExchangeRequest {
+  code: string;
+  state: string;
+}
+
+export interface WeChatAuthResponse extends AuthResponse {
+  nextPath: string;
 }
 
 export interface PreferenceResponse {

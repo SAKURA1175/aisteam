@@ -7,7 +7,7 @@ import { useEffect, useState, useMemo } from "react";
 import { ShieldCheck } from "lucide-react";
 import { LottieMascot } from "@/components/mascot/LottieMascot";
 import { BallPit } from "@/components/ballpit/Ballpit3D";
-import FallingText from "@/components/falling-text/FallingText";
+import RotatingText from "@/components/rotating-text/RotatingText";
 import { getTeachers } from "@/lib/api";
 import { getCompanionIdentity } from "@/lib/companion-identity";
 import { getTeacherBranding } from "@/lib/teacher-branding";
@@ -55,15 +55,17 @@ function LandingButton({
   href,
   children,
   variant = "primary",
-  className = ""
+  className = "",
+  style
 }: {
   href: string;
   children: ReactNode;
   variant?: "primary" | "secondary";
   className?: string;
+  style?: CSSProperties;
 }) {
   return (
-    <Link className={`duo-btn duo-btn--${variant} ${className}`.trim()} href={href}>
+    <Link className={`duo-btn duo-btn--${variant} ${className}`.trim()} href={href} style={style}>
       {children}
     </Link>
   );
@@ -135,12 +137,46 @@ export default function LandingPageClient() {
 
   return (
     <div className="duo-landing">
-      <header className="duo-header">
-        <Link href="/" className="duo-brand">
-          <div className="duo-brand__egg">蛋</div>
-          <div className="duo-brand__text">蛋壳伴学</div>
+      <header style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "space-between", 
+        padding: "1rem 2rem", 
+        position: "absolute", 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        zIndex: 50,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 100%)"
+      }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            color: "#5fd801", // Match the vibrant green of the button
+            fontWeight: "900", 
+            fontSize: "2.6rem", // Make it slightly larger like an icon
+            fontFamily: '"ZCOOL KuaiLe", sans-serif',
+            textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)",
+            lineHeight: 1
+          }}>
+            蛋
+          </div>
+          <div style={{ 
+            fontSize: "1.8rem", 
+            fontWeight: "900", 
+            color: "#5fd801", // Match the vibrant green
+            letterSpacing: "0.02em",
+            fontFamily: '"ZCOOL KuaiLe", "Nunito", sans-serif',
+            textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)",
+            lineHeight: 1,
+            paddingTop: "0.2rem" // Visual alignment
+          }}>
+            蛋壳伴学
+          </div>
         </Link>
-        <LandingButton href="/chat" variant="primary">
+        <LandingButton href="/chat" variant="primary" className="!rounded-[1.2rem] !px-5 !py-1.5 !font-bold hover:!scale-105 transition-transform" style={{ background: "#5fd801", border: "none", color: "white", fontSize: "1.2rem", fontFamily: '"ZCOOL KuaiLe", "Nunito", sans-serif', boxShadow: "0 4px 12px rgba(95, 216, 1, 0.4)", textShadow: "0 1px 2px rgba(0,0,0,0.1)", letterSpacing: "0.05em" }}>
           进入陪伴舱
         </LandingButton>
       </header>
@@ -156,17 +192,45 @@ export default function LandingPageClient() {
             colors={[0xff6b9d, 0xffa500, 0xffd93d, 0x6bcf7f, 0x4ecdc4, 0x45b7d1, 0xa78bfa, 0xf472b6, 0xfb923c, 0xfbbf24]}
           />
         </div>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, pointerEvents: "none" }}>
-          <FallingText
-            text="童趣 与 陪伴 如此简单"
-            highlightWords={["童趣", "陪伴"]}
-            trigger="click"
-            backgroundColor="transparent"
-            wireframes={false}
-            gravity={0.56}
-            fontSize="4rem"
-            mouseConstraintStiffness={0.9}
-          />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "row", fontSize: "4rem", fontWeight: "900", color: "var(--ink-strong)", fontFamily: '"ZCOOL KuaiLe", "Comic Sans MS", "Nunito", "Quicksand", "PingFang SC", "HarmonyOS Sans SC", sans-serif', letterSpacing: "0.02em", gap: "1.2rem" }}>
+            <span style={{ textShadow: "0 4px 16px rgba(255,255,255,0.9)" }}>这里有</span>
+            <RotatingText
+              texts={['童趣', '陪伴', '一切想要的东西']}
+              mainClassName="px-10 bg-gradient-to-r from-[#ff8754] to-[#ffb347] text-white overflow-hidden py-3 justify-center rounded-[3rem] shadow-[0_16px_40px_rgba(232,115,74,0.4)] border-[6px] border-white/90"
+              initial={{ y: "100%", opacity: 0, filter: "blur(4px)" }}
+              animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+              exit={{ y: "-100%", opacity: 0, filter: "blur(4px)" }}
+              splitBy="lines"
+              staggerDuration={0}
+              elementLevelClassName="whitespace-nowrap flex items-center h-full"
+              transition={{ ease: [0.25, 1, 0.5, 1], duration: 0.8 }}
+              rotationInterval={2800}
+              animatePresenceMode="popLayout"
+            />
+          </div>
+          
+          <div style={{ textAlign: "center", maxWidth: "800px", padding: "0 20px" }}>
+            <p style={{ 
+              fontSize: "1.25rem", 
+              color: "var(--ink-soft)", 
+              lineHeight: 1.6, 
+              margin: 0,
+              textShadow: "0 2px 10px rgba(255,255,255,0.8)",
+              fontWeight: 500
+            }}>
+              专为儿童打造的 AI 互动伴学平台。通过多角色智能体，提供全天候的语音聊天、知识答疑与情绪陪伴，让孩子在安全的环境中快乐探索世界。
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", pointerEvents: "auto" }}>
+            <LandingButton href="/chat" variant="primary" className="!px-8 !py-4 !text-lg !rounded-full shadow-lg hover:scale-105 transition-transform">
+              免费体验陪伴舱
+            </LandingButton>
+            <LandingButton href="#companions" variant="secondary" className="!px-8 !py-4 !text-lg !rounded-full bg-white/80 backdrop-blur-sm border-2 border-white hover:bg-white transition-colors text-[var(--ink-strong)]">
+              浏览全部伙伴 ↓
+            </LandingButton>
+          </div>
         </div>
       </section>
 

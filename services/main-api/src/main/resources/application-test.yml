@@ -18,3 +18,8 @@ app:
   storage:
     endpoint: http://localhost:9000
     bucket: teacher-knowledge
+  wechat:
+    open-app-id: test-app-id
+    open-app-secret: test-app-secret
+    redirect-uri: http://127.0.0.1:3000/login/wechat/callback
+    state-ttl-seconds: 300
