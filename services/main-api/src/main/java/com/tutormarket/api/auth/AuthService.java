@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +28,8 @@ import java.util.UUID;
 public class AuthService {
     private static final String DEFAULT_NEXT_PATH = "/chat";
     private static final String WECHAT_SCOPE = "snsapi_login";
+    private static final String DESKTOP_PLATFORM = "desktop_win";
+    private static final Duration DESKTOP_AUTH_CODE_TTL = Duration.ofMinutes(2);
 
     private final UserRepository userRepository;
     private final AuthIdentityRepository authIdentityRepository;
@@ -39,6 +42,7 @@ public class AuthService {
     private final WeChatClient wechatClient;
     private final WeChatLoginStateStore wechatLoginStateStore;
     private final WeChatLoginRateLimiter wechatLoginRateLimiter;
+    private final DesktopAuthCodeStore desktopAuthCodeStore;
 
     public AuthService(UserRepository userRepository,
                        AuthIdentityRepository authIdentityRepository,
@@ -50,7 +54,8 @@ public class AuthService {
                        ChildProfileService childProfileService,
                        WeChatClient wechatClient,
                        WeChatLoginStateStore wechatLoginStateStore,
-                       WeChatLoginRateLimiter wechatLoginRateLimiter) {
+                       WeChatLoginRateLimiter wechatLoginRateLimiter,
+                       DesktopAuthCodeStore desktopAuthCodeStore) {
         this.userRepository = userRepository;
         this.authIdentityRepository = authIdentityRepository;
         this.passwordEncoder = passwordEncoder;
@@ -62,6 +67,7 @@ public class AuthService {
         this.wechatClient = wechatClient;
         this.wechatLoginStateStore = wechatLoginStateStore;
         this.wechatLoginRateLimiter = wechatLoginRateLimiter;
+        this.desktopAuthCodeStore = desktopAuthCodeStore;
     }
 
     public AuthDtos.WeChatQrConfigResponse wechatQrConfig(String rawNextPath, String requestId, String clientKey) {
@@ -119,6 +125,53 @@ public class AuthService {
 
     public AuthDtos.AuthResponse handleWeChatLogin(AuthDtos.WeChatLoginRequest request, String requestId) {
         throw new DomainException(HttpStatus.GONE, "旧版微信登录接口已下线，请使用扫码登录");
+    }
+
+    public AuthDtos.DesktopAuthCodeResponse createDesktopCode(UserPrincipal principal, String requestId) {
+        String code = UUID.randomUUID().toString();
+        Instant expiresAt = Instant.now().plus(DESKTOP_AUTH_CODE_TTL);
+
+        try {
+            desktopAuthCodeStore.save(code, principal.userId().toString(), DESKTOP_AUTH_CODE_TTL);
+            auditService.record(principal.tenantId(), principal, "auth.desktop_code_create", "desktop_login",
+                    principal.userId().toString(), requestId, "SUCCESS", Map.of(
+                            "platform", DESKTOP_PLATFORM,
+                            "expiresAt", expiresAt.toString()
+                    ));
+            return new AuthDtos.DesktopAuthCodeResponse(code, expiresAt.toString());
+        } catch (RuntimeException exception) {
+            auditService.record(principal.tenantId(), principal, "auth.desktop_code_create", "desktop_login",
+                    principal.userId().toString(), requestId, "FAILED", Map.of("platform", DESKTOP_PLATFORM));
+            throw exception;
+        }
+    }
+
+    public AuthDtos.AuthResponse exchangeDesktopCode(AuthDtos.DesktopAuthExchangeRequest request, String requestId) {
+        UserPrincipal principal = null;
+        String targetId = null;
+
+        try {
+            if (!DESKTOP_PLATFORM.equals(request.platform())) {
+                throw new DomainException(HttpStatus.BAD_REQUEST, "Unsupported desktop platform");
+            }
+
+            String userId = desktopAuthCodeStore.consume(request.code())
+                    .orElseThrow(() -> new DomainException(HttpStatus.UNAUTHORIZED, "桌面登录授权码已失效，请回到浏览器重新登录"));
+            targetId = userId;
+
+            UserEntity user = userRepository.findById(UUID.fromString(userId))
+                    .orElseThrow(() -> new DomainException(HttpStatus.UNAUTHORIZED, "桌面登录授权码对应的用户不存在"));
+
+            principal = user.toPrincipal(user.getTenantId());
+            auditService.record(user.getTenantId(), principal, "auth.desktop_exchange", "desktop_login",
+                    user.getId().toString(), requestId, "SUCCESS", Map.of("platform", request.platform()));
+
+            return new AuthDtos.AuthResponse(jwtTokenService.issueToken(principal), toProfile(user));
+        } catch (RuntimeException exception) {
+            auditService.record(appProperties.platform().tenantId(), principal, "auth.desktop_exchange", "desktop_login",
+                    targetId, requestId, "FAILED", Map.of("platform", request.platform()));
+            throw exception;
+        }
     }
 
     @Transactional

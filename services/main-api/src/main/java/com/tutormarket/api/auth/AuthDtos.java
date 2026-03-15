@@ -56,6 +56,18 @@ public final class AuthDtos {
     ) {
     }
 
+    public record DesktopAuthCodeResponse(
+            String code,
+            String expiresAt
+    ) {
+    }
+
+    public record DesktopAuthExchangeRequest(
+            @NotBlank String code,
+            @NotBlank String platform
+    ) {
+    }
+
     public record UserProfileResponse(
             String id,
             String email,

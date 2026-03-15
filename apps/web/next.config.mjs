@@ -6,6 +6,7 @@ const workspaceRoot = path.dirname(fileURLToPath(new URL("../../package.json", i
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@tutormarket/types", "@tutormarket/ui-tokens"],
+  output: "standalone",
   turbopack: {
     root: workspaceRoot
   },

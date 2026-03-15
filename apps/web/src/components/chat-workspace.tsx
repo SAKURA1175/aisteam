@@ -2,12 +2,13 @@
 
 import type { ChatMessageItem, CitationItem, ConversationSummary, PreferenceResponse } from "@tutormarket/types";
 import Image from "next/image";
-import { BookOpenText, ChevronDown, ImageIcon, Menu, Mic, Paperclip, SendHorizontal, Settings2, Sparkles } from "lucide-react";
+import { BookOpenText, ChevronDown, ImageIcon, LogOut, Menu, Mic, Paperclip, SendHorizontal, Settings2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createConversation, getMessages, streamConversationMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { getCompanionIdentity } from "../lib/companion-identity";
+import { isDesktopApp } from "../lib/desktop";
 import { useWorkspace } from "./workspace-shell";
 
 const citationSourceLabel = {
@@ -64,7 +65,7 @@ function CuteCompanionIcon({ src, alt, glyph, className = "" }: { src: string; a
 
 export function ChatWorkspace() {
   const router = useRouter();
-  const { session, token } = useAuth();
+  const { logout, session, token } = useAuth();
   const {
     activeConversationId,
     beginNewConversation,
@@ -107,6 +108,7 @@ export function ChatWorkspace() {
   const dailyTip = useMemo(() => getDailyTip(companion.displayName), [companion.displayName]);
   const sidebarVisible = isDesktop || sidebarOpen;
   const headerRuleTitle = teacherDetail?.activeRule?.title ?? "蛋壳伴学基础规则 v1";
+  const desktopApp = isDesktopApp();
 
   useEffect(() => {
     const syncViewport = () => {
@@ -468,9 +470,22 @@ export function ChatWorkspace() {
               </div>
             )
           ) : null}
-          <button className="gemini-history-item gemini-history-item--utility" type="button" onClick={() => router.push("/chat/library")}>
-            <BookOpenText size={18} strokeWidth={2.1} />
-            <span>知识库</span>
+          {!desktopApp ? (
+            <button className="gemini-history-item gemini-history-item--utility" type="button" onClick={() => router.push("/chat/library")}>
+              <BookOpenText size={18} strokeWidth={2.1} />
+              <span>知识库</span>
+            </button>
+          ) : null}
+          <button
+            className="gemini-history-item gemini-history-item--utility"
+            type="button"
+            onClick={() => {
+              logout();
+              router.push("/login");
+            }}
+          >
+            <LogOut size={18} strokeWidth={2.1} />
+            <span>退出登录</span>
           </button>
         </div>
       </aside>

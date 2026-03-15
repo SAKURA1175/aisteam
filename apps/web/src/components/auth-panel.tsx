@@ -9,6 +9,7 @@ import { BallPit } from "./ballpit/Ballpit3D";
 import { LottieMascot } from "./mascot/LottieMascot";
 import { getWechatQrConfig, login, register } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { getDesktopBridge, isDesktopApp } from "../lib/desktop";
 
 type Mode = "login" | "register" | "wechat";
 
@@ -37,12 +38,14 @@ export function AuthPanel() {
   const [password, setPassword] = useState("Student123!");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [desktopRedirecting, setDesktopRedirecting] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [wechatError, setWechatError] = useState<string | null>(null);
   const [wechatConfig, setWechatConfig] = useState<Awaited<ReturnType<typeof getWechatQrConfig>> | null>(null);
   const [wechatScriptReady, setWechatScriptReady] = useState(false);
   const nextPath = useMemo(() => searchParams.get("next") || "/chat", [searchParams]);
+  const desktopApp = isDesktopApp();
 
   useEffect(() => {
     if (initialized && session) {
@@ -138,6 +141,24 @@ export function AuthPanel() {
     );
   }
 
+  async function handleDesktopLogin() {
+    const desktopBridge = getDesktopBridge();
+    if (!desktopBridge) {
+      setError("当前环境未检测到桌面应用桥接");
+      return;
+    }
+
+    try {
+      setDesktopRedirecting(true);
+      setError(null);
+      await desktopBridge.openExternalLogin(nextPath);
+    } catch (desktopError) {
+      setError(desktopError instanceof Error ? desktopError.message : "桌面登录拉起失败");
+    } finally {
+      setDesktopRedirecting(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (mode === "wechat") {
@@ -160,6 +181,82 @@ export function AuthPanel() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (desktopApp) {
+    return (
+      <main className="duo-landing relative min-h-screen w-full overflow-hidden flex items-center justify-center m-0 p-0">
+        <div className="absolute inset-0 z-0">
+          <BallPit
+            count={200}
+            gravity={0.5}
+            friction={0.99}
+            wallBounce={0.8}
+            followCursor={true}
+            colors={[0xff6b9d, 0xffa500, 0xffd93d, 0x6bcf7f, 0x4ecdc4, 0x45b7d1, 0xa78bfa, 0xf472b6, 0xfb923c, 0xfbbf24]}
+          />
+          <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" />
+        </div>
+
+        <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 md:px-8 bg-gradient-to-b from-white/80 to-transparent">
+          <Link href="/" className="flex items-center gap-2 no-underline hover:scale-105 transition-transform">
+            <div
+              className="text-[#5fd801] font-black text-4xl"
+              style={{ fontFamily: '"ZCOOL KuaiLe", sans-serif', textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)", lineHeight: 1 }}
+            >
+              蛋
+            </div>
+            <div
+              className="text-[#5fd801] font-black text-2xl tracking-wide pt-1"
+              style={{ fontFamily: '"ZCOOL KuaiLe", "Nunito", sans-serif', textShadow: "0 2px 4px rgba(95, 216, 1, 0.2)", lineHeight: 1 }}
+            >
+              蛋壳伴学
+            </div>
+          </Link>
+        </header>
+
+        <div className="z-10 w-full max-w-md px-4 mt-12 relative">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 pointer-events-none transition-transform duration-300 ease-out z-20">
+            <LottieMascot src="/lottie/chick-hatching.json" fallback="🐣" className="w-full h-full drop-shadow-xl" />
+          </div>
+
+          <div className="bg-white/95 backdrop-blur-xl rounded-[2rem] p-8 pt-16 shadow-[0_20px_60px_rgba(0,0,0,0.1),0_0_0_6px_rgba(255,255,255,0.6)] border-2 border-[#e5e5e5] relative overflow-hidden">
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-extrabold text-gray-800 mb-2 font-['Nunito',sans-serif]">在浏览器中完成登录</h1>
+              <p className="text-sm text-gray-500 font-medium">
+                Windows 桌面版首发不内嵌登录表单。点击下面的按钮后，会在系统浏览器打开登录页；登录成功后会自动回到桌面应用。
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-5">
+              <div className="w-full rounded-[1.75rem] border-2 border-[#e5e5e5] bg-[#f7f7f7] px-5 py-6 flex flex-col items-center gap-4">
+                <div className="text-center">
+                  <div className="text-sm font-bold text-[#58cc02]">浏览器登录回桌面</div>
+                  <p className="text-xs text-gray-500 mt-1">支持邮箱登录，也支持在浏览器中继续微信扫码。</p>
+                </div>
+
+                <button className="button button--primary w-full" disabled={desktopRedirecting} type="button" onClick={() => void handleDesktopLogin()}>
+                  {desktopRedirecting ? "正在打开浏览器..." : "去浏览器登录"}
+                </button>
+
+                <div className="w-full rounded-2xl bg-white/80 border border-[#ececec] px-4 py-3 text-xs text-gray-500 leading-6">
+                  <div>1. 在浏览器中完成邮箱或微信登录</div>
+                  <div>2. 浏览器会生成一次性桌面授权码</div>
+                  <div>3. 桌面应用收到回调后会自动进入 {nextPath}</div>
+                </div>
+              </div>
+
+              {error ? (
+                <div className="bg-[#ffdfe0] border-2 border-[#ff4b4b] text-[#ea2b2b] p-3 rounded-xl text-sm font-bold flex items-center gap-2">
+                  <span className="text-lg">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (

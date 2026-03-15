@@ -6,6 +6,8 @@ import type {
   ChatStreamEvent,
   CitationItem,
   ConversationSummary,
+  DesktopAuthCodeResponse,
+  DesktopAuthExchangeRequest,
   KnowledgeFileItem,
   MemoryRecordItem,
   PreferenceResponse,
@@ -100,6 +102,20 @@ export async function register(email: string, password: string, displayName: str
   return apiFetch<AuthResponse>("/api/v1/auth/register", {
     method: "POST",
     body: JSON.stringify({ email, password, displayName })
+  });
+}
+
+export async function mintDesktopAuthCode(token: string): Promise<DesktopAuthCodeResponse> {
+  return apiFetch<DesktopAuthCodeResponse>("/api/v1/auth/desktop/codes", {
+    method: "POST",
+    token
+  });
+}
+
+export async function exchangeDesktopAuthCode(payload: DesktopAuthExchangeRequest): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>("/api/v1/auth/desktop/exchange", {
+    method: "POST",
+    body: JSON.stringify(payload)
   });
 }
 

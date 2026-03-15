@@ -55,6 +55,18 @@ public class AuthController {
         return authService.exchangeWeChat(request, requestId(httpServletRequest), clientKey(httpServletRequest));
     }
 
+    @PostMapping("/auth/desktop/codes")
+    public AuthDtos.DesktopAuthCodeResponse createDesktopCode(@AuthenticationPrincipal UserPrincipal principal,
+                                                              HttpServletRequest httpServletRequest) {
+        return authService.createDesktopCode(principal, requestId(httpServletRequest));
+    }
+
+    @PostMapping("/auth/desktop/exchange")
+    public AuthDtos.AuthResponse exchangeDesktopCode(@Valid @RequestBody AuthDtos.DesktopAuthExchangeRequest request,
+                                                     HttpServletRequest httpServletRequest) {
+        return authService.exchangeDesktopCode(request, requestId(httpServletRequest));
+    }
+
     @GetMapping("/me")
     public AuthDtos.UserProfileResponse me(@AuthenticationPrincipal UserPrincipal principal) {
         return authService.currentUser(principal);

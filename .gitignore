@@ -3,6 +3,7 @@ node_modules/
 .next/
 dist/
 build/
+.dist/
 
 # Logs
 *.log

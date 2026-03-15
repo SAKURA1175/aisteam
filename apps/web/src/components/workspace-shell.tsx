@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getPreferences, getTeacher, getTeachers, listConversations, updatePreferences } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { isDesktopApp } from "../lib/desktop";
 
 const SELECTED_TEACHER_STORAGE_KEY = "eggshell.selected_teacher_v1";
 
@@ -336,12 +337,19 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const { initialized, session, token } = useAuth();
   const nextPath = buildNextPath(pathname, searchParams.toString());
+  const desktopApp = isDesktopApp();
 
   useEffect(() => {
     if (initialized && (!session || !token)) {
       router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
     }
   }, [initialized, nextPath, router, session, token]);
+
+  useEffect(() => {
+    if (initialized && session && token && desktopApp && pathname !== "/chat") {
+      router.replace("/chat");
+    }
+  }, [desktopApp, initialized, pathname, router, session, token]);
 
   if (!initialized || !session || !token) {
     return (
@@ -350,6 +358,19 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <div className="status-panel">
             <strong>正在进入陪伴舱...</strong>
             <p>如果当前浏览器没有有效会话，会自动跳转到登录页。</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (desktopApp && pathname !== "/chat") {
+    return (
+      <main className="public-page">
+        <div className="page-shell">
+          <div className="status-panel">
+            <strong>正在返回桌面版聊天主界面...</strong>
+            <p>Windows 首发版暂时只开放登录和聊天主流程。</p>
           </div>
         </div>
       </main>

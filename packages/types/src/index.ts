@@ -67,6 +67,18 @@ export interface WeChatAuthResponse extends AuthResponse {
   nextPath: string;
 }
 
+export type DesktopAuthPlatform = "desktop_win";
+
+export interface DesktopAuthCodeResponse {
+  code: string;
+  expiresAt: string;
+}
+
+export interface DesktopAuthExchangeRequest {
+  code: string;
+  platform: DesktopAuthPlatform;
+}
+
 export interface PreferenceResponse {
   preferredLanguage: string;
   responseStyle: string;

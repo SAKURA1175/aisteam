@@ -21,12 +21,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
+import java.util.UUID;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 class AuthControllerTest extends IntegrationTestSupport {
 
     @Autowired
     private AuthIdentityRepository authIdentityRepository;
+
+    @Autowired
+    private DesktopAuthCodeStore desktopAuthCodeStore;
 
     @MockBean
     private AiOrchestratorClient aiOrchestratorClient;
@@ -176,5 +182,70 @@ class AuthControllerTest extends IntegrationTestSupport {
         org.assertj.core.api.Assertions.assertThat(
                 authIdentityRepository.findByProviderAndWechatOpenId(AuthIdentityProvider.WECHAT_OPEN, "legacy-open-id")
         ).isPresent();
+    }
+
+    @Test
+    void desktopCodeShouldExchangeIntoAuthenticatedSession() throws Exception {
+        String loginToken = registerAndLogin("desktop-user@example.com", "Password123!", "Desktop User");
+
+        MvcResult codeResult = mockMvc.perform(post("/api/v1/auth/desktop/codes")
+                        .header("Authorization", "Bearer " + loginToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").isNotEmpty())
+                .andExpect(jsonPath("$.expiresAt").isNotEmpty())
+                .andReturn();
+
+        String code = objectMapper.readTree(codeResult.getResponse().getContentAsString()).get("code").asText();
+
+        mockMvc.perform(post("/api/v1/auth/desktop/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "platform": "desktop_win"
+                                }
+                                """.formatted(code)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.user.email").value("desktop-user@example.com"));
+
+        mockMvc.perform(post("/api/v1/auth/desktop/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "platform": "desktop_win"
+                                }
+                                """.formatted(code)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("桌面登录授权码已失效，请回到浏览器重新登录"));
+    }
+
+    @Test
+    void desktopCodeExchangeShouldRejectExpiredCodeAndInvalidPlatform() throws Exception {
+        var user = userRepository.findByEmailIgnoreCase("admin@tutormarket.ai").orElseThrow();
+        desktopAuthCodeStore.save("expired-desktop-code", user.getId().toString(), Duration.ofSeconds(-1));
+
+        mockMvc.perform(post("/api/v1/auth/desktop/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "expired-desktop-code",
+                                  "platform": "desktop_win"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("桌面登录授权码已失效，请回到浏览器重新登录"));
+
+        mockMvc.perform(post("/api/v1/auth/desktop/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "%s",
+                                  "platform": "desktop_mac"
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Unsupported desktop platform"));
     }
 }
